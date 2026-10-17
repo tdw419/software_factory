@@ -1,0 +1,160 @@
+# software_factory
+
+A standalone autonomous builder lane. Point it at any git repo, drop in
+tickets, wire one cron job, and a coding agent of your choice lands rungs
+through change-gated ticks with receipts, an append-only decision log, and a
+mechanical second checker.
+
+Zero dependencies. Python >= 3.10 stdlib only.
+
+This is not a novel design — every mechanism here is distilled from a
+production lane (the geometry_os compositor lane, 2026-10) that ran
+autonomously for weeks and survived its own failure modes. See
+`templates/LANE_RULES.md` for the mechanism-by-mechanism lineage.
+
+## Install
+
+Nothing to install:
+
+    python3 software_factory/cli.py --help          # direct
+    python3 -m software_factory --help              # module
+    pip install -e . && factory --help              # if you want `factory` on PATH
+
+## Quickstart
+
+    cd my-project
+    factory init --lane compositor --verify-cmd "pytest -q" \
+                 --builder-cmd "hermes --prompt-file {prompt} --workdir {repo} --yolo"
+
+    # author a ticket
+    cp .factory/tickets/_TEMPLATE.md .factory/tickets/t1_drag.md
+    $EDITOR .factory/tickets/t1_drag.md
+
+    # register it on the queue
+    factory ticket add --id t1 --title "drag plumbing" --ticket .factory/tickets/t1_drag.md
+
+    # one tick by hand (digest gate makes repeats free)
+    factory tick          # -> WAKE t1: builder ok, verify pass, head abc -> def
+    factory tick          # -> SUPPRESSED no_change   (parked is not stalled)
+    factory status
+
+Then wire `factory tick` to any scheduler (see below) and it only spends
+tokens when the repo actually changes.
+
+## Concepts
+
+### The tick (change-gated)
+
+Each tick hashes a stable fingerprint: HEAD + queue_state + tickets + tree
+dirt (minus the churn allowlist) + ladder status lines. Unchanged
+fingerprint -> the tick is a cheap no-op. Changed -> dispatch.
+
+Failure semantics, learned the hard way:
+
+- builder fails or verify RED -> the fingerprint is NOT advanced, so the
+  next tick RETRIES; after 3 consecutive failures the lane PARKS itself
+  (exit 6) instead of hot-looping. Clear with `factory tick --force`
+  after fixing the cause.
+- builder returns 0 but commits nothing -> WAKE DISCIPLINE violation,
+  recorded loudly (a tick that ends without a commit leaves the digest
+  unchanged and the lane silently dies at its next idle tick).
+- git unreadable -> suppressed, never dispatched on unknown state.
+- churn allowlist: decision_log/state/runs/asks are excluded from the
+  fingerprint, or the lane wakes on its own heartbeat forever.
+
+### Tickets and receipts
+
+A ticket declares stages: probe (disruption 0) -> RED -> GREEN -> receipt.
+The RED stage must show the verification gate failing on the unfixed state
+before GREEN is trusted. The receipt pairs commands and outputs in the same
+fence and carries a mandatory "What this does NOT prove" section. The tick
+refuses a builder exit 0 with no receipt.
+
+### The decision log (append-only)
+
+`.factory/decision_log.jsonl` — one JSON object per line, raw UTF-8.
+Every wake, failure, GO, abort, and refusal lands here. Agents never
+rewrite it. Raw UTF-8 is deliberate: `json.dumps` default escapes em dashes
+as `\u2014`, and an escaped phrase once failed a byte-exact GO match.
+
+### The GO gate (disruptive operations)
+
+Anything disruptive (scanout takeover, bulk deletion, force push) is staged:
+
+    factory gate arm --kind scanout --phrase "GO scanout — laptop" -- ./takeover.sh --target eDP-1
+    factory gate fire "GO scanout — laptop"       # byte-exact: no strip, no normalization
+    factory gate abort --kind scanout --reason "wrong target enumerated"
+
+Preflight refuses a second fire while a GO is un-aborted (spend accounting:
+2 GO + 2 aborts = 0 unspent). Wrong phrases are refused and logged, the
+gate stays armed. The authorization covers exactly what the op enumerates.
+
+### The observer (second checker)
+
+    factory observe                                # stable state tuple on stdout
+    factory observe --log-dir audits/              # appends only on change
+
+Feed it to a separate cron leg. It classifies LANDED commit handles
+(RESOLVED / BROKEN / PROSE / MISSING), locates named rules by content
+(never by index), checks receipts exist, and watches the tick heartbeat.
+It never writes the repo. Pair it with the LLM observer prompt in
+`.factory/templates/OBSERVER_PROMPT.md` for a judgment leg.
+
+### Human gate (ASKs)
+
+    factory ask create --subject "packages" --question "install scipy?" --options "y/n"
+
+The operator answers by editing the file (`status: ANSWERED` + answer
+block). Files are the queue.
+
+## Scheduler wiring
+
+Any cron that can run a command works. `factory tick` exits 0 on
+ok/suppressed, 4 verify RED, 5 builder failed, 6 parked.
+
+Hermes Agent example (`~/.hermes/cron`): agent-mode job, every 30 min,
+prompt: "run `factory tick` in <repo>, read the exit code, act per
+README". For the observer use a monitor_script job with
+`factory observe` — its stable output is exactly the change-gating
+contract. Full walkthrough: `templates/HERMES_CRON_WIRING.md`.
+
+## Exit codes (tick)
+
+    0  ok / suppressed / nothing actionable
+    4  verify gate RED (or verify misconfigured while required)
+    5  builder failed
+    6  parked (clear with --force after fixing the cause)
+
+## The rules (shipped as defaults)
+
+`factory init` writes the 10 general lane rules into queue_state.json:
+one ticket at a time, RED-first, receipts with proof-limiting sections,
+frozen pins, no absorbing pre-existing failures, WAKE DISCIPLINE,
+operator-approved package installs, commit per sub-step, explicit gate
+timeouts, enumerated commit scope. Edit them per lane — but read
+`templates/LANE_RULES.md` first: each encodes a specific incident.
+
+## Layout
+
+    .factory/
+      config.json           lane config (builder cmd, verify cmd, timeouts, allowlist)
+      queue_state.json      rungs, claims, rules
+      decision_log.jsonl    append-only audit
+      tickets/              ticket files (committed)
+      receipts/             receipts (committed)
+      runs/                 per-tick dispatch artifacts (gitignored)
+      asks/                 human-gate queue (committed)
+      state.json            tick counters + last fingerprint (gitignored)
+      templates/            prompt templates (committed)
+
+Commit `.factory/` (except runs/, state.json, pending_gate.json — the
+init gitignore handles those). The queue and log ARE the lane's memory.
+
+## Provenance
+
+Distilled 2026-10-17 from the geometry_os compositor lane: rung1_monitor.py
+(digest gating), compositor_observer_monitor.py (mechanical second checker),
+QUEUE_STATE.json + 11 lane rules, gate_b_go.sh (GO/abort spend accounting),
+RUNG1_TICKET.md (ticket anatomy), and the lane's failure record (HEAD.lock
+races, fetch-storm false wakes, escaped-em-dash GO mismatch, watchdog
+self-wake loops, silent stalls from idle-tick suppression).

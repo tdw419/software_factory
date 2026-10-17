@@ -1,0 +1,102 @@
+"""Mechanical observer — the SECOND CHECKER.
+
+Port of the live lane's compositor_observer_monitor.py, generalized:
+
+- stdout is a STABLE state tuple (no timestamps) — feed it to any
+  change-gated cron: unchanged output = silent tick, changed = wake.
+- optional --log-dir: appends timestamped snapshots only on change, with a
+  .last sidecar (the watchdog logging pattern).
+- commit handles are CLASSIFIED (PROSE / MISSING / RESOLVED / BROKEN) —
+  the live lane's c2 check that catches "this commit" prose placeholders.
+- named rules are located by CONTENT, never by index.
+- never writes the repo. Ever.
+"""
+
+import hashlib
+import json
+import os
+import time
+from pathlib import Path
+
+from . import queue_state
+from .common import atomic_write_text, git
+
+
+def _sha12(s: str) -> str:
+    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
+
+
+def _classify_handle(repo, handle: str) -> str:
+    if not handle:
+        return "MISSING"
+    if handle.startswith("this commit") or " " in handle:
+        return "PROSE"
+    r = git(repo, "cat-file", "-e", f"{handle}^{{commit}}")
+    return "RESOLVED" if r.returncode == 0 else "BROKEN"
+
+
+def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
+    """Return the stable state lines. Read-only; never raises for lane faults."""
+    repo = Path(repo)
+    lines = []
+    q = None
+    try:
+        q = queue_state.load(repo)
+        lines.append("queue_parse=OK")
+    except Exception as e:
+        lines.append(f"queue_parse=FAILED {type(e).__name__}")
+
+    if q is not None:
+        rules = q.get("rules", [])
+        lines.append(f"rules_count={len(rules)}")
+        lines.append(f"rules_sha={_sha12(chr(10).join(rules))}")
+        for w in watch_rules:
+            key = "watch_" + _sha12(w)
+            lines.append(f"{key}={'OK' if any(w in r for r in rules) else 'GONE'}")
+        landed_commits = []
+        for rid, r in q.get("rungs", {}).items():
+            st = r.get("status", "?")
+            lines.append(f"rung_{rid}_status={st}")
+            if st == "LANDED":
+                cls = _classify_handle(repo, r.get("commit") or "")
+                lines.append(f"rung_{rid}_handle={cls}")
+                landed_commits.append((rid, r.get("receipt") or ""))
+        missing = [rid for rid, rp in landed_commits
+                   if not (repo / rp).exists()] if landed_commits else []
+        lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
+
+    st = git(repo, "status", "--porcelain")
+    if st.returncode == 0:
+        rows = [ln for ln in st.stdout.splitlines() if ln.strip()
+                and not any(ln[3:].strip().startswith(a.rstrip("/"))
+                            for a in churn_allowlist)]
+        lines.append(f"tree={'DIRTY(%d)' % len(rows) if rows else 'CLEAN'}")
+    else:
+        lines.append("tree=UNREADABLE")
+
+    runs = repo / ".factory" / "runs"
+    try:
+        mt = max(os.path.getmtime(os.path.join(runs, f)) for f in os.listdir(runs))
+        lines.append("tick_heartbeat=" + ("STALL" if time.time() - mt > stale_secs else "OK"))
+    except (OSError, ValueError):
+        lines.append("tick_heartbeat=NO_RUNS")
+
+    return lines
+
+
+def run(repo, log_dir=None, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
+    lines = observe(repo, stale_secs=stale_secs, watch_rules=watch_rules,
+                    churn_allowlist=churn_allowlist)
+    print("\n".join(lines))
+    if log_dir:
+        state = "\n".join(lines)
+        last = Path(log_dir) / ".observer_last"
+        prev = last.read_text(encoding="utf-8") if last.exists() else ""
+        if state != prev:
+            log_dir = Path(log_dir)
+            log_dir.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
+            with open(log_dir / "observer.log", "a", encoding="utf-8") as f:
+                f.write(f"=== {stamp} ===\n{state}\n\n")
+            atomic_write_text(last, state)
+    return lines
