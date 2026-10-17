@@ -104,6 +104,7 @@ DEFAULT_CONFIG = {
             ".factory/runs/",
             ".factory/asks/",
             ".factory/pending_gate.json",
+            ".factory/tick.lock",
         ],
         "ladder": {"path": "", "line_prefix": "- Rung"},
     },

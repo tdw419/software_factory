@@ -17,16 +17,8 @@ import json
 from pathlib import Path
 
 from . import queue_state
-from .common import git, git_root, is_under_allowlist, scoped_dirty_rows, sha16
-
-#: Paths whose churn must never wake the lane. Directories match by prefix.
-DEFAULT_ALLOWLIST = (
-    ".factory/decision_log.jsonl",
-    ".factory/state.json",
-    ".factory/runs/",
-    ".factory/asks/",
-    ".factory/pending_gate.json",
-)
+from .common import (DEFAULT_ALLOWLIST, git, git_root, is_under_allowlist,
+                     resolve_allowlist, scoped_dirty_rows, sha16)
 
 
 class Fingerprint:
@@ -58,7 +50,7 @@ def compute(repo, allowlist=None, ladder=None) -> Fingerprint:
     QUEUE_STATE is untouched.
     """
     repo = Path(repo)
-    allowlist = tuple(allowlist) if allowlist is not None else DEFAULT_ALLOWLIST
+    allowlist = resolve_allowlist(repo, allowlist)
     parts = {}
 
     root = git_root(repo)

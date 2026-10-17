@@ -32,6 +32,53 @@ def factory_dir(repo) -> Path:
     return Path(repo) / ".factory"
 
 
+#: Paths whose churn must never wake the lane. Directories match by prefix.
+DEFAULT_ALLOWLIST = (
+    ".factory/decision_log.jsonl",
+    ".factory/state.json",
+    ".factory/runs/",
+    ".factory/asks/",
+    ".factory/pending_gate.json",
+    ".factory/tick.lock",
+)
+
+REQUIRED_RECEIPT_SECTIONS = (
+    "## What PASS proves",
+    "## What this does NOT prove",
+)
+
+
+def resolve_allowlist(repo, allowlist=None) -> tuple:
+    """Resolve the churn allowlist for repo from explicit arg, .factory/config.json,
+    or DEFAULT_ALLOWLIST — single source of truth for digest and observer."""
+    if allowlist is not None:
+        return tuple(allowlist)
+    cfg_path = factory_dir(repo) / "config.json"
+    if cfg_path.exists():
+        try:
+            cfg = load_json(cfg_path)
+            cfg_allow = cfg.get("digest", {}).get("churn_allowlist")
+            if cfg_allow is not None:
+                return tuple(cfg_allow)
+        except Exception:
+            pass
+    return DEFAULT_ALLOWLIST
+
+
+def validate_receipt(path: Path) -> list:
+    """Validate that a receipt file exists, is a regular file, and contains all
+    required sections (including 'What this does NOT prove').
+    Returns a list of missing section headers (or ['<missing>'] if file absent)."""
+    path = Path(path)
+    if not path.is_file():
+        return ["<missing>"]
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ["<unreadable>"]
+    return [sec for sec in REQUIRED_RECEIPT_SECTIONS if sec not in text]
+
+
 def is_under_allowlist(path: str, allowlist) -> bool:
     """Check if a lane-relative path matches any entry in the churn allowlist
     on a proper path-separator boundary."""
@@ -60,10 +107,11 @@ def _single_path_under_allowlist(path: str, allowlist) -> bool:
     return False
 
 
-def scoped_dirty_rows(repo, allowlist=()) -> tuple:
+def scoped_dirty_rows(repo, allowlist=None) -> tuple:
     """Return (ok: bool, rows: list[str]) of dirty git status lines scoped to repo
     and filtered by allowlist."""
     repo = Path(repo)
+    allowlist = resolve_allowlist(repo, allowlist)
     root = git_root(repo)
     if root is None:
         return False, []

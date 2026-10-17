@@ -36,6 +36,15 @@ FAKE_BUILDER = textwrap.dedent("""\
         q["rungs"][rid].update(status="IN_PROGRESS",
                                claimed_by="fake-builder")
         qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+    elif mode == "sloppy_receipt":
+        q["rungs"][rid].update(status="LANDED", claimed_by="fake-builder",
+                               claimed_at="t", landed_at="t", commit="PENDING")
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
+            "# RECEIPT\\n\\n## What PASS proves\\nfake without proof limits\\n")
+        g("add", ".factory/queue_state.json",
+          f".factory/receipts/{rid}_RECEIPT.md")
+        g("commit", "-qm", f"{rid}: sloppy land")
     # mode "nothing": exit 0 without touching anything
 """)
 
@@ -167,3 +176,50 @@ def test_force_tick_on_degraded_repo_unparks_and_exits_nonzero(repo, monkeypatch
     state = tick.load_state(repo)
     assert state["parked"] is False
     assert state["consecutive_failures"] == 0
+
+
+def test_flock_concurrency_guard_prevents_overlapping_ticks(repo):
+    import fcntl
+    setup_builder(repo, "land")
+    lp = tick.lock_path(repo)
+    lp.parent.mkdir(parents=True, exist_ok=True)
+    with open(lp, "a+", encoding="utf-8") as held:
+        fcntl.flock(held.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            code, msg = tick.run_tick(repo)
+            assert code == tick.EXIT_LOCKED
+            assert "SUPPRESSED locked" in msg
+        finally:
+            fcntl.flock(held.fileno(), fcntl.LOCK_UN)
+    # Once released, tick proceeds normally
+    code2, msg2 = tick.run_tick(repo)
+    assert code2 == tick.EXIT_OK
+    assert msg2.startswith("WAKE")
+
+
+def test_transient_builder_timeout_does_not_park_lane(repo):
+    init_lane(repo, verify_cmd="true", builder_cmd="sleep 5")
+    t = repo / ".factory" / "tickets" / "t1.md"
+    t.write_text("# TICKET — t1: demo\n## Goal\nx\n## Stages\n- s\n## Constraints\n- c\n")
+    from software_factory import queue_state
+    q = queue_state.load(repo)
+    queue_state.register_rung(q, "t1", "demo", ".factory/tickets/t1.md")
+    queue_state.save(repo, q)
+
+    for _ in range(3):
+        code, msg = tick.run_tick(repo, builder_timeout=1)
+        assert code == tick.EXIT_BUILDER_FAILED
+        assert "builder TIMEOUT" in msg
+
+    state = tick.load_state(repo)
+    assert state["parked"] is False
+    assert state["consecutive_failures"] == 0
+    assert state["transient_failures"] == 3
+
+
+def test_sloppy_receipt_missing_proof_limits_rejected(repo):
+    setup_builder(repo, "sloppy_receipt")
+    code, msg = tick.run_tick(repo)
+    assert code == tick.EXIT_BUILDER_FAILED
+    assert "receipt incomplete" in msg
+    assert "## What this does NOT prove" in msg

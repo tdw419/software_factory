@@ -17,7 +17,7 @@ import time
 from pathlib import Path
 
 from . import queue_state
-from .common import atomic_write_text, git, scoped_dirty_rows, sha12
+from .common import atomic_write_text, git, scoped_dirty_rows, sha12, validate_receipt
 
 
 def _classify_handle(repo, handle: str) -> str:
@@ -29,7 +29,7 @@ def _classify_handle(repo, handle: str) -> str:
     return "RESOLVED" if r.returncode == 0 else "BROKEN"
 
 
-def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
+def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list:
     """Return the stable state lines. Read-only; never raises for lane faults."""
     repo = Path(repo)
     lines = []
@@ -55,9 +55,16 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
                 cls = _classify_handle(repo, r.get("commit") or "")
                 lines.append(f"rung_{rid}_handle={cls}")
                 landed_commits.append((rid, (r.get("receipt") or "").strip()))
-        missing = [rid for rid, rp in landed_commits
-                   if not rp or not (repo / rp).is_file()] if landed_commits else []
+        missing = []
+        incomplete = []
+        for rid, rp in landed_commits:
+            if not rp or not (repo / rp).is_file():
+                missing.append(rid)
+            elif validate_receipt(repo / rp):
+                incomplete.append(rid)
         lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
+        if incomplete:
+            lines.append("receipts_incomplete=" + ",".join(incomplete))
 
     ok, rows = scoped_dirty_rows(repo, allowlist=churn_allowlist)
     if ok:
@@ -75,7 +82,7 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
     return lines
 
 
-def run(repo, log_dir=None, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
+def run(repo, log_dir=None, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list:
     lines = observe(repo, stale_secs=stale_secs, watch_rules=watch_rules,
                     churn_allowlist=churn_allowlist)
     print("\n".join(lines))

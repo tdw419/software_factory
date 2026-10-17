@@ -14,7 +14,9 @@ def healthy_lane(repo):
                               receipt=".factory/receipts/t1_RECEIPT.md")
     q["rungs"]["t1"].update(status="LANDED", commit=None)
     queue_state.save(repo, q)
-    (repo / ".factory" / "receipts" / "t1_RECEIPT.md").write_text("receipt\n")
+    (repo / ".factory" / "receipts" / "t1_RECEIPT.md").write_text(
+        "# RECEIPT\n\n## What PASS proves\nok\n\n## What this does NOT prove\n- limit\n"
+    )
     git(repo, "add", ".factory")
     git(repo, "commit", "-qm", "lane: t1")
     q = queue_state.load(repo)
@@ -130,3 +132,31 @@ def test_observer_allowlist_respects_path_boundary(repo):
     (repo / ".factory" / "runs_backup" / "x").write_text("dirty\n")
     d2 = dict(ln.split("=", 1) for ln in observer.observe(repo, churn_allowlist=allow))
     assert d2["tree"].startswith("DIRTY")
+
+
+def test_incomplete_receipt_detected_by_observer(repo):
+    healthy_lane(repo)
+    (repo / ".factory" / "receipts" / "t1_RECEIPT.md").write_text("# RECEIPT\nsloppy prose only\n")
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["receipts_missing"] == "none"
+    assert d["receipts_incomplete"] == "t1"
+
+
+def test_observer_and_digest_share_config_allowlist_resolution(repo):
+    from software_factory import digest
+    healthy_lane(repo)
+    cfg_path = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_path.read_text())
+    cfg["digest"]["churn_allowlist"].append("scratch/")
+    cfg_path.write_text(json.dumps(cfg, indent=2))
+    git(repo, "add", ".factory/config.json")
+    git(repo, "commit", "-qm", "allowlist scratch/")
+
+    (repo / "scratch").mkdir()
+    (repo / "scratch" / "temp.log").write_text("churn\n")
+
+    # Neither caller passes allowlist explicitly; both resolve from config.json
+    obs_d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    fp = digest.compute(repo)
+    assert obs_d["tree"] == "CLEAN"
+    assert fp.parts["TREE"] == "CLEAN"

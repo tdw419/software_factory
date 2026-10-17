@@ -53,7 +53,7 @@ def cmd_init(args):
                       RECEIPT_TEMPLATE.format(rung_id="<id>", title="<title>"))
     atomic_write_text(fdir / "templates" / "PROMPT_TEMPLATE.md", PROMPT_TEMPLATE)
     atomic_write_text(fdir / "templates" / "OBSERVER_PROMPT.md", OBSERVER_PROMPT_TEMPLATE)
-    atomic_write_text(fdir / ".gitignore", "runs/\npending_gate.json\n")
+    atomic_write_text(fdir / ".gitignore", "runs/\npending_gate.json\ntick.lock\n")
 
     print(f"initialized lane '{args.lane}' at {fdir}")
     print(f"  head at creation: {head or '(no commits yet)'}")
@@ -90,9 +90,8 @@ def cmd_status(args):
 def cmd_digest(args):
     repo = _repo(args)
     cfg = _load_cfg_or_none(repo)
-    allowlist = cfg["digest"]["churn_allowlist"] if cfg else None
     ladder = cfg["digest"].get("ladder") if cfg else None
-    fp = digest.compute(repo, allowlist=allowlist, ladder=(ladder or None))
+    fp = digest.compute(repo, ladder=(ladder or None))
     print("\n".join(fp.as_lines()))
     print(f"fingerprint={fp.stable}")
     return 0
@@ -199,11 +198,9 @@ def cmd_observe(args):
     repo = _repo(args)
     cfg = _load_cfg_or_none(repo)
     obs = cfg["observer"] if cfg else {}
-    allow = cfg["digest"]["churn_allowlist"] if cfg else ()
     observer.run(repo, log_dir=args.log_dir,
                  stale_secs=args.stale_secs or obs.get("stale_secs", 5400),
-                 watch_rules=obs.get("watch_rules", ()),
-                 churn_allowlist=allow or ())
+                 watch_rules=obs.get("watch_rules", ()))
     return 0
 
 

@@ -14,15 +14,17 @@ Semantics distilled from the live lane (including its failure history):
 - Every wake appends a decision_log record — the tick history is the audit.
 """
 
+import fcntl
 import shlex
 import subprocess
 from pathlib import Path
 
 from . import adapters, decision_log, digest, queue_state
-from .common import atomic_write_text, dump_json, git, load_json, now_iso, sh
+from .common import atomic_write_text, dump_json, git, load_json, now_iso, sh, validate_receipt
 from .templates import DEFAULT_CONFIG, PROMPT_TEMPLATE
 
 STATE_NAME = "state.json"
+LOCK_NAME = "tick.lock"
 PARK_AFTER_FAILURES = 3
 
 EXIT_OK = 0
@@ -30,10 +32,15 @@ EXIT_VERIFY_RED = 4
 EXIT_BUILDER_FAILED = 5
 EXIT_PARKED = 6
 EXIT_DEGRADED = 7
+EXIT_LOCKED = 8
 
 
 def state_path(repo) -> Path:
     return queue_state.factory_dir(repo) / STATE_NAME
+
+
+def lock_path(repo) -> Path:
+    return queue_state.factory_dir(repo) / LOCK_NAME
 
 
 def load_state(repo) -> dict:
@@ -41,7 +48,8 @@ def load_state(repo) -> dict:
     if p.exists():
         return load_json(p)
     return {"last_fingerprint": None, "ticks_total": 0, "suppressed_total": 0,
-            "wakes_total": 0, "consecutive_failures": 0, "parked": False,
+            "wakes_total": 0, "consecutive_failures": 0,
+            "transient_failures": 0, "parked": False,
             "last_tick_ts": None}
 
 
@@ -70,6 +78,28 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
              verify_timeout=None) -> tuple:
     repo = Path(repo)
     cfg = load_config(repo)
+    fdir = queue_state.factory_dir(repo)
+    fdir.mkdir(parents=True, exist_ok=True)
+    lp = lock_path(repo)
+    lock_fd = open(lp, "a+", encoding="utf-8")
+    try:
+        try:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return EXIT_LOCKED, "SUPPRESSED locked (another factory tick is currently running)"
+        return _run_tick_locked(repo, cfg, fdir, force=force, dry_run=dry_run,
+                                builder_timeout=builder_timeout,
+                                verify_timeout=verify_timeout)
+    finally:
+        try:
+            fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        lock_fd.close()
+
+
+def _run_tick_locked(repo, cfg, fdir, force=False, dry_run=False,
+                     builder_timeout=None, verify_timeout=None) -> tuple:
     state = load_state(repo)
     state["ticks_total"] += 1
 
@@ -86,6 +116,7 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
         if not dry_run:
             state["parked"] = False
             state["consecutive_failures"] = 0
+            state["transient_failures"] = 0
 
     fp = digest.compute(
         repo,
@@ -95,11 +126,10 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
 
     if fp.degraded:
         state["suppressed_total"] += 1
+        state["transient_failures"] = state.get("transient_failures", 0) + 1
         code = EXIT_DEGRADED if force else EXIT_OK
         return finish(code, "SUPPRESSED degraded (git unreadable; not dispatching on unknown state)",
                       state, suppressed=True)
-
-    fdir = queue_state.factory_dir(repo)
 
     if not force and fp.stable == state.get("last_fingerprint"):
         state["suppressed_total"] += 1
@@ -142,6 +172,12 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
     b_timeout = builder_timeout or cfg["builder"]["timeout_s"]
     try:
         br = adapter_fn(repo, cfg["builder"].get("cmd", ""), prompt_path, run_dir, b_timeout)
+    except subprocess.TimeoutExpired:
+        code, msg, st = _record_failure(repo, state, rid, fp,
+                                        f"builder TIMEOUT after {b_timeout}s", head_before,
+                                        verify=None, exit_code=EXIT_BUILDER_FAILED,
+                                        transient=True)
+        return finish(code, msg, st)
     except adapters.AdapterError as e:
         code, msg, st = _record_failure(repo, state, rid, fp, str(e), head_before,
                                         verify=None, exit_code=EXIT_BUILDER_FAILED)
@@ -187,8 +223,12 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
     if verify_status == "TIMEOUT":
         problems.append("verify gate TIMEOUT (wedge risk — rule 8)")
     receipt_abs = repo / receipt_rel
-    if not receipt_abs.exists():
+    if not receipt_abs.is_file():
         problems.append(f"receipt missing: {receipt_rel}")
+    else:
+        missing_secs = validate_receipt(receipt_abs)
+        if missing_secs:
+            problems.append(f"receipt incomplete ({receipt_rel} missing sections: {', '.join(missing_secs)})")
     rq = queue_state.load(repo)
     rstatus = rq["rungs"][rid]["status"]
     if br.returncode == 0 and rstatus == "IN_PROGRESS" and head_after == head_before:
@@ -208,6 +248,7 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
     state["last_fingerprint"] = fp2.stable
     state["wakes_total"] += 1
     state["consecutive_failures"] = 0
+    state["transient_failures"] = 0
     state["parked"] = False
     decision_log.append(repo, {
         "actor": "factory-tick", "tick": {
@@ -224,15 +265,20 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
 
 
 def _record_failure(repo, state, rid, fp, problem, head_before,
-                    verify=None, head_after=None, exit_code=EXIT_BUILDER_FAILED):
-    state["consecutive_failures"] = state.get("consecutive_failures", 0) + 1
+                    verify=None, head_after=None, exit_code=EXIT_BUILDER_FAILED,
+                    transient=False):
+    if transient:
+        state["transient_failures"] = state.get("transient_failures", 0) + 1
+    else:
+        state["consecutive_failures"] = state.get("consecutive_failures", 0) + 1
     decision_log.append(repo, {
         "actor": "factory-tick", "tick_failed": {
             "rung": rid, "problem": problem, "verify": verify,
+            "transient": transient,
             "head_before": head_before, "head_after": head_after,
         },
     })
-    if state["consecutive_failures"] >= PARK_AFTER_FAILURES:
+    if not transient and state["consecutive_failures"] >= PARK_AFTER_FAILURES:
         state["parked"] = True
         state["last_fingerprint"] = fp.stable  # stop retry-hot-looping
         return exit_code if exit_code else EXIT_BUILDER_FAILED, \
