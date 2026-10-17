@@ -110,12 +110,15 @@ def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
             if status == "LANDED" and not r.get("landed_at"):
                 r["landed_at"] = now_iso()
     if commit is not None and commit != r.get("commit"):
-        if not commit or " " in commit:
+        if (not commit or any(c.isspace() for c in commit)
+                or commit.startswith("this commit")):
             raise QueueError(
                 "commit must be a bare sha handle — prose classifies PROSE in the observer")
         r["commit"] = commit
         changes["commit"] = commit
     if receipt is not None and receipt != r.get("receipt"):
+        if not receipt.strip():
+            raise QueueError("receipt path must be non-empty")
         r["receipt"] = receipt
         changes["receipt"] = receipt
     if claimed_by is not None and claimed_by != r.get("claimed_by"):
@@ -124,6 +127,8 @@ def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
         if claimed_by and not r.get("claimed_at"):
             r["claimed_at"] = now_iso()
     if title is not None and title != r.get("title"):
+        if not title.strip():
+            raise QueueError("title must be non-empty")
         r["title"] = title
         changes["title"] = title
     return r, changes

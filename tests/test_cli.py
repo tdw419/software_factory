@@ -78,6 +78,12 @@ def test_cli_ticket_set_lifecycle(repo, capsys):
     # prose commit handle refused at the source (observer would say PROSE)
     assert main(["--repo", str(repo), "ticket", "set", "t5",
                  "--commit", "this commit here"]) == 1
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--commit", "abc\tdef"]) == 1
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--receipt", "   "]) == 1
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--title", ""]) == 1
     # claim, then land with a real sha
     assert main(["--repo", str(repo), "ticket", "set", "t5",
                  "--claimed-by", "operator"]) == 0
@@ -90,9 +96,13 @@ def test_cli_ticket_set_lifecycle(repo, capsys):
     assert r["status"] == "LANDED" and r["commit"] == sha
     assert r["landed_at"] and r["claimed_at"]
     from software_factory import decision_log
-    recs = decision_log.read_all(repo)
+    recs_before = decision_log.read_all(repo)
     assert any("rung_updated" in rec and rec["rung_updated"].get("status") == "LANDED"
-               for rec in recs)
+               for rec in recs_before)
+    # no-op ticket set does not append an empty rung_updated record
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--status", "LANDED"]) == 0
+    assert len(decision_log.read_all(repo)) == len(recs_before)
 
 
 def test_cli_ask_answer_flow(repo, capsys):
@@ -103,6 +113,9 @@ def test_cli_ask_answer_flow(repo, capsys):
                  "--question", "install scipy?", "--options", "yes / no"]) == 0
     ask_path = Path(capsys.readouterr().out.strip().split()[-1])
     name = ask_path.name
+    # empty answer refused
+    assert main(["--repo", str(repo), "ask", "answer", name,
+                 "--answer", "   "]) == 1
     assert main(["--repo", str(repo), "ask", "answer", name,
                  "--answer", "YES — scipy"]) == 0
     text = ask_path.read_text(encoding="utf-8")

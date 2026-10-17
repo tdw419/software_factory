@@ -132,10 +132,11 @@ def cmd_ticket(args):
         except queue_state.QueueError as e:
             print(f"ticket set: {e}")
             return 1
-        queue_state.save(repo, q)
-        decision_log.append(repo, {
-            "actor": "operator", "rung_updated": {"rung": args.id, **changes},
-        })
+        if changes:
+            queue_state.save(repo, q)
+            decision_log.append(repo, {
+                "actor": "operator", "rung_updated": {"rung": args.id, **changes},
+            })
         print(f"updated rung {args.id}: {changes if changes else 'no changes'}")
         return 0
     if args.sub == "validate":

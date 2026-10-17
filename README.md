@@ -52,23 +52,39 @@ fingerprint -> the tick is a cheap no-op. Changed -> dispatch.
 Failure semantics, learned the hard way:
 
 - builder fails or verify RED -> the fingerprint is NOT advanced, so the
-  next tick RETRIES; after 3 consecutive failures the lane PARKS itself
-  (exit 6) instead of hot-looping. Clear with `factory tick --force`
+  next tick RETRIES; after 3 consecutive builder/gate failures the lane PARKS
+  itself (exit 6) instead of hot-looping. Clear with `factory tick --force`
   after fixing the cause.
+- transient failures (degraded git, builder timeout) increment
+  `transient_failures` and retry on the next tick without advancing the
+  3-strike park counter.
+- overlapping ticks are guarded by a non-blocking `fcntl.flock` on
+  `.factory/tick.lock` (exit 8).
 - builder returns 0 but commits nothing -> WAKE DISCIPLINE violation,
   recorded loudly (a tick that ends without a commit leaves the digest
   unchanged and the lane silently dies at its next idle tick).
+- builder leaves a rung `IN_PROGRESS` with no `claimed_by` -> QUEUE
+  DISCIPLINE violation (`next_actionable` only resumes claimed rungs, so an
+  unclaimed `IN_PROGRESS` rung would otherwise orphan the lane).
 - git unreadable -> suppressed, never dispatched on unknown state.
-- churn allowlist: decision_log/state/runs/asks are excluded from the
-  fingerprint, or the lane wakes on its own heartbeat forever.
+- churn allowlist: decision_log/state/runs/asks/pending_gate/tick.lock are
+  excluded from the fingerprint, or the lane wakes on its own heartbeat
+  forever.
 
 ### Tickets and receipts
 
 A ticket declares stages: probe (disruption 0) -> RED -> GREEN -> receipt.
 The RED stage must show the verification gate failing on the unfixed state
 before GREEN is trusted. The receipt pairs commands and outputs in the same
-fence and carries a mandatory "What this does NOT prove" section. The tick
-refuses a builder exit 0 with no receipt.
+fence and carries mandatory `## What PASS proves` and
+`## What this does NOT prove` sections. The tick refuses a builder exit 0
+if the receipt is missing or lacks either required section.
+
+Lifecycle updates can be performed via CLI (refusing prose commit handles at
+the source and recording `decision_log.jsonl` provenance):
+
+    factory ticket set t1 --status IN_PROGRESS --claimed-by hermes
+    factory ticket set t1 --status LANDED --commit $(git rev-parse HEAD)
 
 ### The decision log (append-only)
 
@@ -85,9 +101,10 @@ Anything disruptive (scanout takeover, bulk deletion, force push) is staged:
     factory gate fire "GO scanout — laptop"       # byte-exact: no strip, no normalization
     factory gate abort --kind scanout --reason "wrong target enumerated"
 
-Preflight refuses a second fire while a GO is un-aborted (spend accounting:
-2 GO + 2 aborts = 0 unspent). Wrong phrases are refused and logged, the
-gate stays armed. The authorization covers exactly what the op enumerates.
+Preflight refuses a second arm while a gate is already pending, and refuses a
+second fire while a GO is un-aborted (spend accounting: 2 GO + 2 aborts = 0
+unspent). Wrong phrases are refused and logged, the gate stays armed. If the
+authorized op times out, `fire` records exit `124` and disarms cleanly.
 
 ### The observer (second checker)
 
@@ -95,22 +112,28 @@ gate stays armed. The authorization covers exactly what the op enumerates.
     factory observe --log-dir audits/              # appends only on change
 
 Feed it to a separate cron leg. It classifies LANDED commit handles
-(RESOLVED / BROKEN / PROSE / MISSING), locates named rules by content
-(never by index), checks receipts exist, and watches the tick heartbeat.
+(`RESOLVED` / `BROKEN` / `PROSE` / `MISSING`), locates named rules by content
+(never by index), checks receipts exist and contain required sections
+(`receipts_missing`, `receipts_incomplete`), surfaces armed gates
+(`gate_armed`, `gate_armed_stale=yes/no`), and watches the tick heartbeat.
 It never writes the repo. Pair it with the LLM observer prompt in
 `.factory/templates/OBSERVER_PROMPT.md` for a judgment leg.
 
 ### Human gate (ASKs)
 
     factory ask create --subject "packages" --question "install scipy?" --options "y/n"
+    factory ask list
+    factory ask answer ASK-20261017 --answer "YES — scipy"
 
-The operator answers by editing the file (`status: ANSWERED` + answer
-block). Files are the queue.
+The operator answers via `factory ask answer` (which flips `status: ANSWERED`,
+fills the Answer block, and appends an `ask_answered` provenance record to
+`decision_log.jsonl`) or by editing the file directly. Files are the queue.
 
 ## Scheduler wiring
 
 Any cron that can run a command works. `factory tick` exits 0 on
-ok/suppressed, 4 verify RED, 5 builder failed, 6 parked.
+ok/suppressed, 4 verify RED, 5 builder failed, 6 parked, 7 degraded (when
+forced), 8 locked (concurrent tick running).
 
 Hermes Agent example (`~/.hermes/cron`): agent-mode job, every 30 min,
 prompt: "run `factory tick` in <repo>, read the exit code, act per
@@ -122,8 +145,10 @@ contract. Full walkthrough: `templates/HERMES_CRON_WIRING.md`.
 
     0  ok / suppressed / nothing actionable
     4  verify gate RED (or verify misconfigured while required)
-    5  builder failed
+    5  builder failed (or missing/incomplete receipt, wake/queue discipline violation)
     6  parked (clear with --force after fixing the cause)
+    7  degraded git state encountered on --force
+    8  locked (another factory tick is currently running)
 
 ## The rules (shipped as defaults)
 
@@ -145,10 +170,12 @@ timeouts, enumerated commit scope. Edit them per lane — but read
       runs/                 per-tick dispatch artifacts (gitignored)
       asks/                 human-gate queue (committed)
       state.json            tick counters + last fingerprint (gitignored)
+      tick.lock             flock concurrency guard (gitignored)
       templates/            prompt templates (committed)
 
-Commit `.factory/` (except runs/, state.json, pending_gate.json — the
-init gitignore handles those). The queue and log ARE the lane's memory.
+Commit `.factory/` (except `runs/`, `state.json`, `pending_gate.json`,
+`tick.lock` — the init gitignore handles those). The queue and log ARE the
+lane's memory.
 
 ## Provenance
 

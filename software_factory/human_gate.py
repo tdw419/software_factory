@@ -78,6 +78,8 @@ def answer(repo, ask_ref: str, answer: str, actor: str = "operator") -> Path:
     """Answer a PENDING ask: flip status, fill the Answer section, and append
     a decision_log record so the answer carries provenance like everything
     else on the lane. Refusing to re-answer keeps the record append-only."""
+    if not answer or not answer.strip():
+        raise AskError("answer must be non-empty")
     p = _resolve_ask(repo, ask_ref)
     text = p.read_text(encoding="utf-8")
     status = "UNKNOWN"
