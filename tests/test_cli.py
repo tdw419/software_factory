@@ -63,3 +63,59 @@ def test_ask_uniqueness_same_second(repo):
     assert "question 2?" in p2.read_text(encoding="utf-8")
     assert "question 3?" in p3.read_text(encoding="utf-8")
     assert len(human_gate.pending(repo)) == 3
+
+
+def test_cli_ticket_set_lifecycle(repo, capsys):
+    import subprocess
+    init_lane(repo)
+    t = repo / ".factory" / "tickets" / "t5.md"
+    t.write_text("# TICKET — t5\n## Goal\ng\n## Stages\ns\n## Constraints\nc\n")
+    assert main(["--repo", str(repo), "ticket", "add", "--id", "t5",
+                 "--title", "five", "--ticket", ".factory/tickets/t5.md"]) == 0
+    # unknown rung refused
+    assert main(["--repo", str(repo), "ticket", "set", "nope",
+                 "--status", "LANDED"]) == 1
+    # prose commit handle refused at the source (observer would say PROSE)
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--commit", "this commit here"]) == 1
+    # claim, then land with a real sha
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--claimed-by", "operator"]) == 0
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"],
+                         capture_output=True, text=True).stdout.strip()
+    assert main(["--repo", str(repo), "ticket", "set", "t5",
+                 "--status", "LANDED", "--commit", sha]) == 0
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    r = q["rungs"]["t5"]
+    assert r["status"] == "LANDED" and r["commit"] == sha
+    assert r["landed_at"] and r["claimed_at"]
+    from software_factory import decision_log
+    recs = decision_log.read_all(repo)
+    assert any("rung_updated" in rec and rec["rung_updated"].get("status") == "LANDED"
+               for rec in recs)
+
+
+def test_cli_ask_answer_flow(repo, capsys):
+    from pathlib import Path
+    from software_factory import decision_log, human_gate
+    init_lane(repo)
+    assert main(["--repo", str(repo), "ask", "create", "--subject", "packages",
+                 "--question", "install scipy?", "--options", "yes / no"]) == 0
+    ask_path = Path(capsys.readouterr().out.strip().split()[-1])
+    name = ask_path.name
+    assert main(["--repo", str(repo), "ask", "answer", name,
+                 "--answer", "YES — scipy"]) == 0
+    text = ask_path.read_text(encoding="utf-8")
+    assert "status: ANSWERED" in text
+    assert "YES — scipy" in text and "answered_by: operator" in text
+    assert "<operator writes here" not in text
+    assert human_gate.pending(repo) == []
+    assert any("ask_answered" in r for r in decision_log.read_all(repo))
+    # never re-answer a closed ask
+    assert main(["--repo", str(repo), "ask", "answer", name,
+                 "--answer", "again"]) == 1
+    # ambiguous prefix refused
+    human_gate.create(repo, "packages", "second question?")
+    assert main(["--repo", str(repo), "ask", "answer", "ASK",
+                 "--answer", "x"]) == 1
+    assert "ambiguous" in capsys.readouterr().out

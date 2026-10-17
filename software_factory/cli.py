@@ -123,6 +123,21 @@ def cmd_ticket(args):
         queue_state.save(repo, q)
         print(f"registered rung {args.id} ({args.status}): {args.title}")
         return 0
+    if args.sub == "set":
+        q = queue_state.load(repo)
+        try:
+            _, changes = queue_state.update_rung(
+                q, args.id, status=args.status, commit=args.commit,
+                receipt=args.receipt, claimed_by=args.claimed_by, title=args.title)
+        except queue_state.QueueError as e:
+            print(f"ticket set: {e}")
+            return 1
+        queue_state.save(repo, q)
+        decision_log.append(repo, {
+            "actor": "operator", "rung_updated": {"rung": args.id, **changes},
+        })
+        print(f"updated rung {args.id}: {changes if changes else 'no changes'}")
+        return 0
     if args.sub == "validate":
         p = Path(args.ticket)
         text = p.read_text(encoding="utf-8")
@@ -187,6 +202,14 @@ def cmd_ask(args):
                               options=args.options or "", actor=args.actor)
         print(f"created {p}")
         return 0
+    if args.sub == "answer":
+        try:
+            p = human_gate.answer(repo, args.ask, args.answer, actor=args.actor)
+        except human_gate.AskError as e:
+            print(f"ask answer: {e}")
+            return 1
+        print(f"answered {p}")
+        return 0
     if args.sub == "list":
         for p, s in human_gate.list_asks(repo):
             print(f"{s:10s} {p}")
@@ -250,6 +273,15 @@ def build_parser():
     sp3 = tsub.add_parser("validate")
     sp3.add_argument("ticket")
     sp3.set_defaults(fn=cmd_ticket)
+    sp4 = tsub.add_parser("set", help="update rung lifecycle (status/commit/claim)")
+    sp4.add_argument("id")
+    sp4.add_argument("--status", default=None, choices=queue_state.STATUSES)
+    sp4.add_argument("--commit", default=None,
+                     help="bare sha handle (prose refused — observer classifies it PROSE)")
+    sp4.add_argument("--receipt", default=None)
+    sp4.add_argument("--claimed-by", default=None, dest="claimed_by")
+    sp4.add_argument("--title", default=None)
+    sp4.set_defaults(fn=cmd_ticket)
 
     sp = sub.add_parser("log", help="show decision_log.jsonl")
     sp.add_argument("--tail", type=int, default=0)
@@ -288,6 +320,11 @@ def build_parser():
     sp2.set_defaults(fn=cmd_ask)
     sp3 = asub.add_parser("list")
     sp3.set_defaults(fn=cmd_ask)
+    sp4 = asub.add_parser("answer", help="answer a PENDING ask (status flip + decision log)")
+    sp4.add_argument("ask", help="ask file, basename, or unique prefix")
+    sp4.add_argument("--answer", required=True)
+    sp4.add_argument("--actor", default="operator")
+    sp4.set_defaults(fn=cmd_ask)
 
     sp = sub.add_parser("observe", help="mechanical second-checker (stable output)")
     sp.add_argument("--log-dir", default=None)

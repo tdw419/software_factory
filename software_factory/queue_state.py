@@ -89,6 +89,46 @@ def next_actionable(q: dict):
     return None, False
 
 
+def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
+                claimed_by=None, title=None):
+    """Update lifecycle fields of an existing rung. Returns (rung, changes).
+
+    Validated here so the operator CLI can never write a queue the tick or
+    observer would choke on: a prose commit handle would classify PROSE in
+    the observer, and a claimed land needs landed_at/claimed_at stamped.
+    """
+    if rid not in q["rungs"]:
+        raise QueueError(f"rung '{rid}' does not exist")
+    r = q["rungs"][rid]
+    changes = {}
+    if status is not None:
+        if status not in STATUSES:
+            raise QueueError(f"bad status {status!r} (want {STATUSES})")
+        if status != r["status"]:
+            r["status"] = status
+            changes["status"] = status
+            if status == "LANDED" and not r.get("landed_at"):
+                r["landed_at"] = now_iso()
+    if commit is not None and commit != r.get("commit"):
+        if not commit or " " in commit:
+            raise QueueError(
+                "commit must be a bare sha handle — prose classifies PROSE in the observer")
+        r["commit"] = commit
+        changes["commit"] = commit
+    if receipt is not None and receipt != r.get("receipt"):
+        r["receipt"] = receipt
+        changes["receipt"] = receipt
+    if claimed_by is not None and claimed_by != r.get("claimed_by"):
+        r["claimed_by"] = claimed_by
+        changes["claimed_by"] = claimed_by
+        if claimed_by and not r.get("claimed_at"):
+            r["claimed_at"] = now_iso()
+    if title is not None and title != r.get("title"):
+        r["title"] = title
+        changes["title"] = title
+    return r, changes
+
+
 def register_rung(q: dict, rid: str, title: str, ticket: str,
                   receipt: str = "", status: str = "OPEN") -> None:
     if rid in q["rungs"]:

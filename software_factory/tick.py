@@ -234,6 +234,11 @@ def _run_tick_locked(repo, cfg, fdir, force=False, dry_run=False,
     if br.returncode == 0 and rstatus == "IN_PROGRESS" and head_after == head_before:
         problems.append("WAKE DISCIPLINE: builder returned 0 but committed nothing "
                         "(rule 5 — a tick must end with a commit)")
+    if br.returncode == 0 and rstatus == "IN_PROGRESS" \
+            and not rq["rungs"][rid].get("claimed_by"):
+        problems.append("QUEUE DISCIPLINE: rung left IN_PROGRESS with no claimed_by — "
+                        "next_actionable can never resume it (rule 1: claim the rung "
+                        "in the same commit as the work)")
 
     if problems:
         code, msg, st = _record_failure(repo, state, rid, fp, "; ".join(problems),

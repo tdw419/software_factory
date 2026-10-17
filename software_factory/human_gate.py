@@ -9,8 +9,12 @@ answers commit with provenance like everything else.
 import time
 from pathlib import Path
 
-from . import queue_state
+from . import decision_log, queue_state
 from .common import atomic_write_text
+
+
+class AskError(Exception):
+    pass
 
 
 def asks_dir(repo) -> Path:
@@ -56,3 +60,43 @@ def list_asks(repo):
 
 def pending(repo):
     return [p for p, s in list_asks(repo) if s.upper() == "PENDING"]
+
+
+def _resolve_ask(repo, ask_ref: str) -> Path:
+    """Resolve an ask by absolute path, basename, or unique name prefix."""
+    cands = [p for p in sorted(asks_dir(repo).glob("ASK-*.md"))
+             if ask_ref in (str(p), p.name) or p.name.startswith(ask_ref)]
+    if not cands:
+        raise AskError(f"no ask matches {ask_ref!r}")
+    if len(cands) > 1 and ask_ref not in (str(cands[0]), cands[0].name):
+        raise AskError(f"ambiguous ask ref {ask_ref!r}: matches "
+                       + ", ".join(p.name for p in cands))
+    return cands[0]
+
+
+def answer(repo, ask_ref: str, answer: str, actor: str = "operator") -> Path:
+    """Answer a PENDING ask: flip status, fill the Answer section, and append
+    a decision_log record so the answer carries provenance like everything
+    else on the lane. Refusing to re-answer keeps the record append-only."""
+    p = _resolve_ask(repo, ask_ref)
+    text = p.read_text(encoding="utf-8")
+    status = "UNKNOWN"
+    for ln in text.splitlines():
+        if ln.startswith("status:"):
+            status = ln.split(":", 1)[1].strip()
+            break
+    if status.upper() != "PENDING":
+        raise AskError(f"{p.name} is {status}, not PENDING — never re-answer a closed ask")
+    text = text.replace("status: PENDING", "status: ANSWERED", 1)
+    placeholder = "<operator writes here, then sets status: ANSWERED>"
+    filled = f"{answer}\n(answered_by: {actor})"
+    if placeholder in text:
+        text = text.replace(placeholder, filled, 1)
+    else:
+        text = text.replace("## Answer", f"## Answer\n{filled}", 1)
+    atomic_write_text(p, text)
+    decision_log.append(repo, {
+        "actor": actor,
+        "ask_answered": {"ask": p.name, "answer": answer},
+    })
+    return p

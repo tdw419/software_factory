@@ -45,6 +45,17 @@ FAKE_BUILDER = textwrap.dedent("""\
         g("add", ".factory/queue_state.json",
           f".factory/receipts/{rid}_RECEIPT.md")
         g("commit", "-qm", f"{rid}: sloppy land")
+    elif mode == "unclaimed":
+        # commits real work + a valid receipt but forgets claimed_by —
+        # the rung becomes unreachable by next_actionable forever
+        q["rungs"][rid].update(status="IN_PROGRESS")
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
+            "# RECEIPT\\n\\n## What PASS proves\\nfake\\n"
+            "## What this does NOT prove\\n- nothing real happened\\n")
+        g("add", ".factory/queue_state.json",
+          f".factory/receipts/{rid}_RECEIPT.md")
+        g("commit", "-qm", f"{rid}: unclaimed land")
     # mode "nothing": exit 0 without touching anything
 """)
 
@@ -223,3 +234,18 @@ def test_sloppy_receipt_missing_proof_limits_rejected(repo):
     assert code == tick.EXIT_BUILDER_FAILED
     assert "receipt incomplete" in msg
     assert "## What this does NOT prove" in msg
+
+
+def test_unclaimed_in_progress_violates_queue_discipline(repo):
+    """A rung left IN_PROGRESS with no claimed_by is unreachable by
+    next_actionable — without this check the tick goes GREEN, the next tick
+    suppresses, and the lane silently dies with the rung half-done."""
+    setup_builder(repo, "unclaimed")
+    code, msg = tick.run_tick(repo)
+    assert code == tick.EXIT_BUILDER_FAILED
+    assert "QUEUE DISCIPLINE" in msg
+    recs = decision_log.read_all(repo)
+    failed = [r for r in recs if "tick_failed" in r]
+    assert "QUEUE DISCIPLINE" in failed[-1]["tick_failed"]["problem"]
+    # and it was NOT a wake-discipline hit: the builder did commit
+    assert "WAKE DISCIPLINE" not in failed[-1]["tick_failed"]["problem"]

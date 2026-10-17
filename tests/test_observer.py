@@ -160,3 +160,27 @@ def test_observer_and_digest_share_config_allowlist_resolution(repo):
     fp = digest.compute(repo)
     assert obs_d["tree"] == "CLEAN"
     assert fp.parts["TREE"] == "CLEAN"
+
+
+def test_observer_surfaces_armed_gate(repo):
+    from software_factory import gate
+    healthy_lane(repo)
+    gate.arm(repo, "demo", "GO demo", ["true"])
+    lines = observer.observe(repo)
+    d = dict(ln.split("=", 1) for ln in lines)
+    assert d["gate_armed"] == "demo"
+    assert d["gate_armed_stale"] == "no"
+    gate.disarm(repo)
+    lines = observer.observe(repo)
+    assert not any(ln.startswith("gate_armed") for ln in lines)
+
+
+def test_observer_flags_stale_and_unreadable_gate(repo):
+    healthy_lane(repo)
+    pg = repo / ".factory" / "pending_gate.json"
+    pg.write_text(json.dumps({"kind": "demo", "armed_ts": "2020-01-01T00:00:00+00:00"}))
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["gate_armed_stale"] == "yes"
+    pg.write_text("{not json")
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["gate_armed"] == "UNREADABLE"

@@ -12,8 +12,10 @@ Port of the live lane's compositor_observer_monitor.py, generalized:
 - never writes the repo. Ever.
 """
 
+import json
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from . import queue_state
@@ -65,6 +67,23 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list
         lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
         if incomplete:
             lines.append("receipts_incomplete=" + ",".join(incomplete))
+
+    # an armed gate that never fires is invisible to every other surface;
+    # surface it as stable lines (staleness bucketed to yes/no so stdout
+    # stays identical between ticks until the threshold is actually crossed)
+    gp = queue_state.factory_dir(repo) / "pending_gate.json"
+    if gp.is_file():
+        try:
+            g = json.loads(gp.read_text(encoding="utf-8"))
+            lines.append(f"gate_armed={g.get('kind', '?')}")
+            try:
+                armed = datetime.fromisoformat(g["armed_ts"])
+                age = (datetime.now(timezone.utc) - armed).total_seconds()
+                lines.append("gate_armed_stale=" + ("yes" if age > stale_secs else "no"))
+            except (KeyError, ValueError):
+                pass
+        except (json.JSONDecodeError, OSError):
+            lines.append("gate_armed=UNREADABLE")
 
     ok, rows = scoped_dirty_rows(repo, allowlist=churn_allowlist)
     if ok:
