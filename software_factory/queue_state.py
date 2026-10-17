@@ -8,7 +8,7 @@ product nests them under "rungs" so rung ids are data, not schema.
 
 from pathlib import Path
 
-from .common import dump_json, load_json, now_iso
+from .common import dump_json, factory_dir, load_json, now_iso
 
 STATUSES = ("DRAFT", "OPEN", "IN_PROGRESS", "LANDED", "BLOCKED")
 
@@ -31,10 +31,6 @@ DEFAULT_RULES = [
 
 class QueueError(Exception):
     pass
-
-
-def factory_dir(repo) -> Path:
-    return Path(repo) / ".factory"
 
 
 def queue_path(repo) -> Path:

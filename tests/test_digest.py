@@ -96,3 +96,18 @@ def test_ladder_lines_hash_in(repo, tmp_path):
     git(repo, "commit", "-qm", "roadmap edit")
     b = compute(repo, ladder=cfg).stable
     assert a != b
+
+
+def test_allowlist_path_separator_boundary(repo):
+    init_lane(repo)
+    before = compute(repo).stable
+    # .factory/runs/ is allowlisted, so files inside it do not wake
+    (repo / ".factory" / "runs" / "m1").write_text("ok\n")
+    assert compute(repo).stable == before
+    # .factory/runs_backup/x shares a string prefix with .factory/runs,
+    # but is NOT under .factory/runs/ on a path-separator boundary
+    (repo / ".factory" / "runs_backup").mkdir(exist_ok=True)
+    (repo / ".factory" / "runs_backup" / "x").write_text("dirty\n")
+    after = compute(repo).stable
+    assert before != after
+    assert compute(repo).parts["TREE"] != "CLEAN"

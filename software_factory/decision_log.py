@@ -15,11 +15,12 @@ import json
 import os
 from pathlib import Path
 
+from . import queue_state
 from .common import atomic_write_text, now_iso
 
 
 def log_path(repo) -> Path:
-    return Path(repo) / ".factory" / "decision_log.jsonl"
+    return queue_state.factory_dir(repo) / "decision_log.jsonl"
 
 
 def append(repo, record: dict) -> dict:

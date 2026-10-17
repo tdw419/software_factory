@@ -29,10 +29,11 @@ EXIT_OK = 0
 EXIT_VERIFY_RED = 4
 EXIT_BUILDER_FAILED = 5
 EXIT_PARKED = 6
+EXIT_DEGRADED = 7
 
 
 def state_path(repo) -> Path:
-    return Path(repo) / ".factory" / STATE_NAME
+    return queue_state.factory_dir(repo) / STATE_NAME
 
 
 def load_state(repo) -> dict:
@@ -50,7 +51,7 @@ def save_state(repo, state) -> None:
 
 
 def load_config(repo) -> dict:
-    p = Path(repo) / ".factory" / "config.json"
+    p = queue_state.factory_dir(repo) / "config.json"
     if not p.exists():
         raise FileNotFoundError(f"no config at {p} — run 'factory init'")
     cfg = load_json(p)
@@ -77,10 +78,14 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
             save_state(repo, st)
         return code, msg
 
-    if state.get("parked") and not force:
-        return finish(EXIT_PARKED,
-                      f"PARKED after {state['consecutive_failures']} consecutive failures "
-                      f"— clear with 'factory tick --force' after fixing the cause")
+    if state.get("parked"):
+        if not force:
+            return finish(EXIT_PARKED,
+                          f"PARKED after {state['consecutive_failures']} consecutive failures "
+                          f"— clear with 'factory tick --force' after fixing the cause")
+        if not dry_run:
+            state["parked"] = False
+            state["consecutive_failures"] = 0
 
     fp = digest.compute(
         repo,
@@ -90,12 +95,15 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
 
     if fp.degraded:
         state["suppressed_total"] += 1
-        return finish(EXIT_OK, "SUPPRESSED degraded (git unreadable; not dispatching on unknown state)",
+        code = EXIT_DEGRADED if force else EXIT_OK
+        return finish(code, "SUPPRESSED degraded (git unreadable; not dispatching on unknown state)",
                       state, suppressed=True)
+
+    fdir = queue_state.factory_dir(repo)
 
     if not force and fp.stable == state.get("last_fingerprint"):
         state["suppressed_total"] += 1
-        marker = repo / ".factory" / "runs" / f"{now_iso().replace(':', '')}-suppressed"
+        marker = fdir / "runs" / f"{now_iso().replace(':', '')}-suppressed"
         atomic_write_text(marker, fp.stable + "\n")
         return finish(EXIT_OK, "SUPPRESSED no_change", state, suppressed=True)
 
@@ -107,7 +115,7 @@ def run_tick(repo, force=False, dry_run=False, builder_timeout=None,
         return finish(EXIT_OK, "WAKE no_actionable_ticket (digest moved; register or OPEN a rung)", state)
 
     # ---- dispatch ----
-    run_dir = repo / ".factory" / "runs" / f"{now_iso().replace(':', '')}-{rid}"
+    run_dir = fdir / "runs" / f"{now_iso().replace(':', '')}-{rid}"
     run_dir.mkdir(parents=True, exist_ok=True)
     ticket_rel = q["rungs"][rid].get("ticket", "")
     ticket_body = ""

@@ -68,3 +68,26 @@ def test_op_failure_recorded_and_pending_cleared(repo):
     assert code == 1
     assert rec["scanout_result"]["exit"] == 1
     assert gate.pending(repo) is None
+
+
+def test_op_timeout_recorded_and_disarmed(repo):
+    gate.arm(repo, "scanout", PHRASE, ["sleep", "5"])
+    code, rec = gate.fire(repo, PHRASE, timeout=1)
+    assert code == 124
+    assert rec["scanout_result"]["exit"] == 124
+    assert rec["scanout_result"]["timeout"] == 1
+    assert gate.pending(repo) is None
+    # GO is logged with its paired result and can be aborted cleanly
+    assert len(decision_log.un_abortedgos(repo, "scanout")) == 1
+    gate.abort(repo, "scanout", "timed out")
+    assert decision_log.un_abortedgos(repo, "scanout") == []
+
+
+def test_arm_refuses_when_already_armed_and_logs_audit(repo):
+    gate.arm(repo, "scanout", PHRASE, ["true"])
+    recs = decision_log.read_all(repo)
+    assert any("gate_armed" in r for r in recs)
+    with pytest.raises(gate.GateError, match="already armed"):
+        gate.arm(repo, "other_kind", "GO other", ["true"])
+    # Original gate remains intact
+    assert gate.pending(repo)["kind"] == "scanout"

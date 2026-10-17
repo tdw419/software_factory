@@ -50,3 +50,16 @@ def test_cli_gate_roundtrip(repo):
     assert main(["--repo", str(repo), "gate", "status"]) == 0
     rc = main(["--repo", str(repo), "gate", "fire", "GO demo — now"])
     assert rc == 0
+
+
+def test_ask_uniqueness_same_second(repo):
+    from software_factory import human_gate
+    init_lane(repo)
+    p1 = human_gate.create(repo, "packages", "question 1?")
+    p2 = human_gate.create(repo, "packages", "question 2?")
+    p3 = human_gate.create(repo, "packages", "question 3?")
+    assert len({p1, p2, p3}) == 3
+    assert "question 1?" in p1.read_text(encoding="utf-8")
+    assert "question 2?" in p2.read_text(encoding="utf-8")
+    assert "question 3?" in p3.read_text(encoding="utf-8")
+    assert len(human_gate.pending(repo)) == 3

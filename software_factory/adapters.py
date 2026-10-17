@@ -47,7 +47,7 @@ def run_shell(repo, cmd_tmpl, prompt_path, run_dir, timeout_s):
     return sh(argv, timeout_s, cwd=str(repo))
 
 
-def run_noop(repo, prompt_path, run_dir, timeout_s):
+def run_noop(repo, cmd_tmpl, prompt_path, run_dir, timeout_s):
     """Dry-run adapter: dispatches nothing, changes nothing."""
     return type("R", (), {
         "returncode": 0,

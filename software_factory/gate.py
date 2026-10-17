@@ -14,12 +14,12 @@ never an adjacency. Mechanics distilled from gate_b_go.sh:
   land in decision_log.jsonl — spend accounting is the point.
 """
 
-import hashlib
 import shlex
+import subprocess
 from pathlib import Path
 
-from . import decision_log
-from .common import dump_json, load_json, now_iso, sh
+from . import decision_log, queue_state
+from .common import dump_json, load_json, now_iso, sh, sha16
 
 
 class GateError(Exception):
@@ -27,24 +27,41 @@ class GateError(Exception):
 
 
 def _pending_path(repo) -> Path:
-    return Path(repo) / ".factory" / "pending_gate.json"
+    return queue_state.factory_dir(repo) / "pending_gate.json"
 
 
-def arm(repo, kind: str, phrase: str, op_argv, expects: str = "") -> dict:
+def arm(repo, kind: str, phrase: str, op_argv, expects: str = "",
+        actor: str = "operator") -> dict:
     if not kind or not phrase:
         raise GateError("arm needs both a kind and a non-empty phrase")
     if not op_argv:
         raise GateError("arm needs the operation to authorize (argv)")
-    pending = {
+    existing = pending(repo)
+    if existing is not None:
+        raise GateError(
+            f"gate already armed ({format_pending(existing)}); "
+            f"abort or fire it before arming another"
+        )
+    p = {
         "kind": kind,
         "phrase": phrase,
-        "phrase_sha16": hashlib.sha256(phrase.encode("utf-8")).hexdigest()[:16],
+        "phrase_sha16": sha16(phrase),
         "op": list(op_argv),
         "expects": expects,
         "armed_ts": now_iso(),
     }
-    dump_json(_pending_path(repo), pending)
-    return pending
+    dump_json(_pending_path(repo), p)
+    decision_log.append(repo, {
+        "actor": actor,
+        "gate_armed": {
+            "kind": kind,
+            "phrase_sha16": p["phrase_sha16"],
+            "op": p["op"],
+            "expects": expects,
+        },
+        "ts": p["armed_ts"],
+    })
+    return p
 
 
 def pending(repo):
@@ -63,7 +80,7 @@ def fire(repo, typed: str, actor: str = "operator", timeout: int = 600,
     """Fire the armed gate. Returns (exit_code, record).
 
     Exit codes: 0 ok, 2 nothing armed, 3 refused (phrase or spend-block),
-    op's exit code otherwise.
+    124 timeout, op's exit code otherwise.
     """
     g = pending(repo)
     if g is None:
@@ -75,7 +92,7 @@ def fire(repo, typed: str, actor: str = "operator", timeout: int = 600,
         rec = decision_log.append(repo, {
             "actor": actor,
             "gate_refused": {"kind": kind, "reason": "phrase_mismatch",
-                             "typed_sha16": hashlib.sha256(typed.encode('utf-8')).hexdigest()[:16]},
+                             "typed_sha16": sha16(typed)},
         })
         return 3, rec
 
@@ -97,14 +114,22 @@ def fire(repo, typed: str, actor: str = "operator", timeout: int = 600,
         "actor": actor,
         f"{kind}_go": g["phrase"],
         "op": g["op"],
+        "ts": go_ts,
     })
     try:
         r = sh(g["op"], timeout=timeout)
         outcome = {"exit": r.returncode,
                    "stdout_tail": r.stdout[-2000:],
                    "stderr_tail": r.stderr[-2000:]}
-    except subprocess.TimeoutExpired:  # noqa: F821 — defined below via import
-        raise
+    except subprocess.TimeoutExpired as e:
+        out_str = (e.stdout.decode("utf-8", errors="replace")
+                   if isinstance(e.stdout, bytes) else (e.stdout or ""))
+        err_str = (e.stderr.decode("utf-8", errors="replace")
+                   if isinstance(e.stderr, bytes) else (e.stderr or ""))
+        outcome = {"exit": 124,
+                   "timeout": timeout,
+                   "stdout_tail": out_str[-2000:],
+                   "stderr_tail": err_str[-2000:]}
     rec = decision_log.append(repo, {
         "actor": actor,
         f"{kind}_result": outcome,
@@ -138,8 +163,3 @@ def format_pending(g) -> str:
         return "nothing armed"
     return (f"kind={g['kind']} phrase_sha16={g['phrase_sha16']} "
             f"op={shlex.join(g['op'])} armed={g['armed_ts']}")
-
-
-# subprocess import used by fire(); kept at bottom to keep the module's
-# public surface obvious.
-import subprocess  # noqa: E402

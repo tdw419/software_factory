@@ -9,18 +9,24 @@ answers commit with provenance like everything else.
 import time
 from pathlib import Path
 
+from . import queue_state
 from .common import atomic_write_text
 
 
 def asks_dir(repo) -> Path:
-    return Path(repo) / ".factory" / "asks"
+    return queue_state.factory_dir(repo) / "asks"
 
 
 def create(repo, subject: str, question: str, options: str = "",
            actor: str = "lane") -> Path:
     ts = time.strftime("%Y%m%d-%H%M%S")
-    slug = "".join(c if c.isalnum() else "-" for c in subject.lower())[:40].strip("-")
-    p = asks_dir(repo) / f"ASK-{ts}-{slug}.md"
+    slug = "".join(c if c.isalnum() else "-" for c in subject.lower())[:40].strip("-") or "ask"
+    d = asks_dir(repo)
+    p = d / f"ASK-{ts}-{slug}.md"
+    seq = 2
+    while p.exists():
+        p = d / f"ASK-{ts}-{slug}-{seq}.md"
+        seq += 1
     body = (
         f"# ASK — {subject}\n\n"
         f"status: PENDING\n"

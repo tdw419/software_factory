@@ -137,3 +137,33 @@ def test_dry_run_leaves_no_state(repo):
     code, msg = tick.run_tick(repo, dry_run=True)
     assert code == tick.EXIT_OK and msg.startswith("DRY-RUN")
     assert tick.load_state(repo) == before
+
+
+def test_noop_adapter_accepts_five_args_without_type_error(repo):
+    setup_builder(repo, "land")
+    cfg_path = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_path.read_text())
+    cfg["builder"]["adapter"] = "noop"
+    cfg_path.write_text(json.dumps(cfg, indent=2))
+    code, msg = tick.run_tick(repo)
+    # noop returns 0 without creating a receipt, so tick fails on missing receipt
+    # rather than crashing with TypeError inside adapter_fn
+    assert "TypeError" not in msg
+    assert "receipt missing" in msg
+
+
+def test_force_tick_on_degraded_repo_unparks_and_exits_nonzero(repo, monkeypatch, tmp_path):
+    setup_builder(repo, "claim_no_commit")
+    for _ in range(3):
+        tick.run_tick(repo)
+    assert tick.load_state(repo)["parked"] is True
+
+    # Simulate transient git failure
+    monkeypatch.setattr(tick.digest, "compute",
+                        lambda *a, **kw: tick.digest.Fingerprint({}, degraded=True))
+    code, msg = tick.run_tick(repo, force=True)
+    assert code == tick.EXIT_DEGRADED
+    assert "SUPPRESSED degraded" in msg
+    state = tick.load_state(repo)
+    assert state["parked"] is False
+    assert state["consecutive_failures"] == 0

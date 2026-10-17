@@ -12,18 +12,12 @@ Port of the live lane's compositor_observer_monitor.py, generalized:
 - never writes the repo. Ever.
 """
 
-import hashlib
-import json
 import os
 import time
 from pathlib import Path
 
 from . import queue_state
-from .common import atomic_write_text, git
-
-
-def _sha12(s: str) -> str:
-    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
+from .common import atomic_write_text, git, scoped_dirty_rows, sha12
 
 
 def _classify_handle(repo, handle: str) -> str:
@@ -49,9 +43,9 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
     if q is not None:
         rules = q.get("rules", [])
         lines.append(f"rules_count={len(rules)}")
-        lines.append(f"rules_sha={_sha12(chr(10).join(rules))}")
+        lines.append(f"rules_sha={sha12(chr(10).join(rules))}")
         for w in watch_rules:
-            key = "watch_" + _sha12(w)
+            key = "watch_" + sha12(w)
             lines.append(f"{key}={'OK' if any(w in r for r in rules) else 'GONE'}")
         landed_commits = []
         for rid, r in q.get("rungs", {}).items():
@@ -60,21 +54,18 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=()) -> list:
             if st == "LANDED":
                 cls = _classify_handle(repo, r.get("commit") or "")
                 lines.append(f"rung_{rid}_handle={cls}")
-                landed_commits.append((rid, r.get("receipt") or ""))
+                landed_commits.append((rid, (r.get("receipt") or "").strip()))
         missing = [rid for rid, rp in landed_commits
-                   if not (repo / rp).exists()] if landed_commits else []
+                   if not rp or not (repo / rp).is_file()] if landed_commits else []
         lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
 
-    st = git(repo, "status", "--porcelain")
-    if st.returncode == 0:
-        rows = [ln for ln in st.stdout.splitlines() if ln.strip()
-                and not any(ln[3:].strip().startswith(a.rstrip("/"))
-                            for a in churn_allowlist)]
+    ok, rows = scoped_dirty_rows(repo, allowlist=churn_allowlist)
+    if ok:
         lines.append(f"tree={'DIRTY(%d)' % len(rows) if rows else 'CLEAN'}")
     else:
         lines.append("tree=UNREADABLE")
 
-    runs = repo / ".factory" / "runs"
+    runs = queue_state.factory_dir(repo) / "runs"
     try:
         mt = max(os.path.getmtime(os.path.join(runs, f)) for f in os.listdir(runs))
         lines.append("tick_heartbeat=" + ("STALL" if time.time() - mt > stale_secs else "OK"))

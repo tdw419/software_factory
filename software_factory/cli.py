@@ -20,7 +20,7 @@ def _repo(args) -> Path:
 
 
 def _load_cfg_or_none(repo):
-    p = repo / ".factory" / "config.json"
+    p = queue_state.factory_dir(repo) / "config.json"
     return tick.load_config(repo) if p.exists() else None
 
 
@@ -28,8 +28,8 @@ def _load_cfg_or_none(repo):
 
 def cmd_init(args):
     repo = _repo(args)
-    fdir = repo / ".factory"
-    if (fdir / "queue_state.json").exists() and not args.force:
+    fdir = queue_state.factory_dir(repo)
+    if queue_state.queue_path(repo).exists() and not args.force:
         print(f"already initialized at {fdir} (use --force to re-init)")
         return 1
     fdir.mkdir(parents=True, exist_ok=True)

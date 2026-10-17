@@ -106,3 +106,27 @@ def test_log_written_only_on_change(repo, tmp_path):
     queue_state.save(repo, q)
     observer.run(repo, log_dir=log_dir)
     assert (log_dir / "observer.log").read_text() != first
+
+
+def test_empty_or_unset_receipt_path_detected_as_missing(repo):
+    healthy_lane(repo)
+    q = queue_state.load(repo)
+    q["rungs"]["t1"]["receipt"] = ""
+    queue_state.save(repo, q)
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["receipts_missing"] == "t1"
+
+
+def test_observer_allowlist_respects_path_boundary(repo):
+    healthy_lane(repo)
+    allow = [".factory/runs/"]
+    # Allowed churn directory stays CLEAN
+    (repo / ".factory" / "runs").mkdir(exist_ok=True)
+    (repo / ".factory" / "runs" / "m1").write_text("ok\n")
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo, churn_allowlist=allow))
+    assert d["tree"] == "CLEAN"
+    # Sibling prefix outside allowlist is flagged DIRTY
+    (repo / ".factory" / "runs_backup").mkdir(exist_ok=True)
+    (repo / ".factory" / "runs_backup" / "x").write_text("dirty\n")
+    d2 = dict(ln.split("=", 1) for ln in observer.observe(repo, churn_allowlist=allow))
+    assert d2["tree"].startswith("DIRTY")

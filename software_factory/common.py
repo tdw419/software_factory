@@ -1,5 +1,6 @@
-"""Shared helpers: atomic writes, timestamps, git shells."""
+"""Shared helpers: atomic writes, timestamps, git shells, hashing, paths."""
 
+import hashlib
 import json
 import os
 import subprocess
@@ -11,6 +12,81 @@ from pathlib import Path
 def now_iso() -> str:
     """UTC timestamp, ISO with offset — the live lane's log format."""
     return datetime.now(timezone.utc).isoformat()
+
+
+def sha_hex(data: str, length: int = 16) -> str:
+    """Truncated SHA-256 hex digest of UTF-8 string."""
+    return hashlib.sha256(data.encode("utf-8")).hexdigest()[:length]
+
+
+def sha16(data: str) -> str:
+    return sha_hex(data, 16)
+
+
+def sha12(data: str) -> str:
+    return sha_hex(data, 12)
+
+
+def factory_dir(repo) -> Path:
+    """Return the .factory directory path for a repository."""
+    return Path(repo) / ".factory"
+
+
+def is_under_allowlist(path: str, allowlist) -> bool:
+    """Check if a lane-relative path matches any entry in the churn allowlist
+    on a proper path-separator boundary."""
+    path = path.strip()
+    if " -> " in path:
+        # git status --porcelain rename format: "R  old -> new"
+        parts = [p.strip().strip('"') for p in path.split(" -> ", 1)]
+        return all(_single_path_under_allowlist(p, allowlist) for p in parts)
+    return _single_path_under_allowlist(path.strip('"'), allowlist)
+
+
+def _strip_dot_slash(p: str) -> str:
+    while p.startswith("./"):
+        p = p[2:]
+    return p
+
+
+def _single_path_under_allowlist(path: str, allowlist) -> bool:
+    path = _strip_dot_slash(path)
+    for a in allowlist:
+        a_clean = _strip_dot_slash(a.strip()).rstrip("/")
+        if not a_clean:
+            continue
+        if path == a_clean or path.startswith(a_clean + "/"):
+            return True
+    return False
+
+
+def scoped_dirty_rows(repo, allowlist=()) -> tuple:
+    """Return (ok: bool, rows: list[str]) of dirty git status lines scoped to repo
+    and filtered by allowlist."""
+    repo = Path(repo)
+    root = git_root(repo)
+    if root is None:
+        return False, []
+    st = git(root, "status", "--porcelain", "-uall")
+    if st.returncode != 0:
+        return False, []
+    rel = os.path.relpath(repo, root)
+    rows = []
+    for ln in st.stdout.splitlines():
+        if not ln.strip():
+            continue
+        p = ln[3:] if len(ln) > 3 else ln
+        p_check = p.split(" -> ", 1)[-1].strip().strip('"')
+        if rel != ".":
+            prefix = rel + os.sep
+            if not (p_check == rel or p_check.startswith(prefix)):
+                continue  # outside the lane's subtree
+            p_rel = os.path.relpath(p_check, rel)
+        else:
+            p_rel = p_check
+        if not is_under_allowlist(p_rel, allowlist):
+            rows.append(ln)
+    return True, rows
 
 
 def atomic_write_text(path: Path, text: str) -> None:
