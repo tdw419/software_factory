@@ -132,3 +132,9 @@ def test_cli_ask_answer_flow(repo, capsys):
     assert main(["--repo", str(repo), "ask", "answer", "ASK",
                  "--answer", "x"]) == 1
     assert "ambiguous" in capsys.readouterr().out
+    # empty/whitespace answer refused before any state change
+    p3 = human_gate.create(repo, "packages", "third question?")
+    assert main(["--repo", str(repo), "ask", "answer", p3.name,
+                 "--answer", "   "]) == 1
+    assert "status: PENDING" in p3.read_text(encoding="utf-8")
+    assert p3.name in [Path(p).name for p in human_gate.pending(repo)]
