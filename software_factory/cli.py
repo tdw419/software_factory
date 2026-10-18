@@ -10,7 +10,8 @@ if __package__ in (None, ""):  # direct-file run: python3 .../cli.py --help
     __package__ = "software_factory"
 
 from . import __version__, decision_log, digest, gate, human_gate, observer, queue_state, tick
-from .common import atomic_write_text, dump_json, git, now_iso
+from .common import (atomic_write_text, dump_json, git, now_iso,
+                     validate_receipt)
 from .templates import (DEFAULT_CONFIG, OBSERVER_PROMPT_TEMPLATE, PROMPT_TEMPLATE,
                         RECEIPT_TEMPLATE, TICKET_TEMPLATE)
 
@@ -152,6 +153,19 @@ def cmd_ticket(args):
     return 2
 
 
+def cmd_receipt(args):
+    repo = _repo(args)
+    p = Path(args.receipt)
+    if not p.is_absolute():
+        p = repo / p
+    problems = validate_receipt(p)
+    if problems:
+        print(f"{p}: invalid ({', '.join(problems)})")
+        return 1
+    print(f"{p}: ok")
+    return 0
+
+
 def cmd_log(args):
     repo = _repo(args)
     recs = decision_log.read_all(repo)
@@ -283,6 +297,12 @@ def build_parser():
     sp4.add_argument("--claimed-by", default=None, dest="claimed_by")
     sp4.add_argument("--title", default=None)
     sp4.set_defaults(fn=cmd_ticket)
+
+    sp = sub.add_parser("receipt", help="validate receipts")
+    rsub = sp.add_subparsers(dest="sub", required=True)
+    sp2 = rsub.add_parser("validate")
+    sp2.add_argument("receipt", help="receipt path (repo-relative or absolute)")
+    sp2.set_defaults(fn=cmd_receipt)
 
     sp = sub.add_parser("log", help="show decision_log.jsonl")
     sp.add_argument("--tail", type=int, default=0)

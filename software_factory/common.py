@@ -47,6 +47,10 @@ REQUIRED_RECEIPT_SECTIONS = (
     "## What this does NOT prove",
 )
 
+#: Receipts must carry at least one fenced code block under this heading
+#: (paired command + output evidence).
+RECEIPT_FENCE_HEADING = "## Commands and outputs"
+
 
 def resolve_allowlist(repo, allowlist=None) -> tuple:
     """Resolve the churn allowlist for repo from explicit arg, .factory/config.json,
@@ -66,9 +70,12 @@ def resolve_allowlist(repo, allowlist=None) -> tuple:
 
 
 def validate_receipt(path: Path) -> list:
-    """Validate that a receipt file exists, is a regular file, and contains all
-    required sections (including 'What this does NOT prove').
-    Returns a list of missing section headers (or ['<missing>'] if file absent)."""
+    """Validate that a receipt file exists, is a regular file, contains all
+    required sections (including 'What this does NOT prove'), and carries at
+    least one fenced code block under '## Commands and outputs'.
+    Returns a list of problems: missing section headers, or
+    '<no fenced code block under ## Commands and outputs>'
+    (or ['<missing>'] if file absent)."""
     path = Path(path)
     if not path.is_file():
         return ["<missing>"]
@@ -76,7 +83,29 @@ def validate_receipt(path: Path) -> list:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return ["<unreadable>"]
-    return [sec for sec in REQUIRED_RECEIPT_SECTIONS if sec not in text]
+    missing = [sec for sec in REQUIRED_RECEIPT_SECTIONS if sec not in text]
+    if not has_fenced_block_under(text, RECEIPT_FENCE_HEADING):
+        missing.append(f"<no fenced code block under {RECEIPT_FENCE_HEADING}>")
+    return missing
+
+
+def has_fenced_block_under(text: str, heading: str) -> bool:
+    """True if the section starting with `heading` contains at least one
+    fenced code block (a line starting with ``` ... closed by a later ```
+    line, or still open at end of text)."""
+    in_section = False
+    in_fence = False
+    for ln in text.splitlines():
+        if not in_fence and ln.startswith("## "):
+            in_section = ln.startswith(heading)
+            continue
+        if not in_section:
+            continue
+        if ln.lstrip().startswith("```"):
+            if in_fence:
+                return True  # a block opened and closed inside the section
+            in_fence = True
+    return in_fence  # unterminated trailing fence still shows a block
 
 
 def is_under_allowlist(path: str, allowlist) -> bool:

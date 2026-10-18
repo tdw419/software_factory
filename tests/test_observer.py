@@ -15,7 +15,9 @@ def healthy_lane(repo):
     q["rungs"]["t1"].update(status="LANDED", commit=None)
     queue_state.save(repo, q)
     (repo / ".factory" / "receipts" / "t1_RECEIPT.md").write_text(
-        "# RECEIPT\n\n## What PASS proves\nok\n\n## What this does NOT prove\n- limit\n"
+        "# RECEIPT\n\n## What PASS proves\nok\n\n"
+        "## Commands and outputs\n```bash\n$ true\n# ok\n```\n\n"
+        "## What this does NOT prove\n- limit\n"
     )
     git(repo, "add", ".factory")
     git(repo, "commit", "-qm", "lane: t1")
