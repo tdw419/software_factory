@@ -164,6 +164,33 @@ def test_observer_and_digest_share_config_allowlist_resolution(repo):
     assert fp.parts["TREE"] == "CLEAN"
 
 
+def _configure_ladder(repo, status="OPEN"):
+    cfg_path = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_path.read_text())
+    cfg["digest"]["ladder"] = {"path": "ROADMAP.md", "line_prefix": "- Rung"}
+    cfg_path.write_text(json.dumps(cfg, indent=2))
+    git(repo, "add", ".factory/config.json")
+    git(repo, "commit", "-qm", "configure digest ladder")
+    (repo / "ROADMAP.md").write_text(f"- Rung t1 [{status}]: demo\n")
+    git(repo, "add", "ROADMAP.md")
+    git(repo, "commit", "-qm", f"ladder: t1 {status}")
+
+
+def test_ladder_drift_detected(repo):
+    # queue says LANDED, ROADMAP.md still says OPEN -> drift
+    healthy_lane(repo)
+    _configure_ladder(repo, status="OPEN")
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["ladder_drift"] == "t1"
+
+
+def test_ladder_in_sync_reports_none(repo):
+    healthy_lane(repo)
+    _configure_ladder(repo, status="LANDED")
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["ladder_drift"] == "none"
+
+
 def test_observer_surfaces_armed_gate(repo):
     from software_factory import gate
     healthy_lane(repo)

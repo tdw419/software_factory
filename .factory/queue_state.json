@@ -27,13 +27,13 @@
       "commit": "616e893"
     },
     "r3": {
-      "status": "DRAFT",
+      "status": "IN_PROGRESS",
       "title": "ROADMAP.md supply-row status check in observer",
       "ticket": ".factory/tickets/r3_ladder_sync.md",
       "receipt": ".factory/receipts/r3_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-18T00:37:49.916391+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-18T05:07:18.610488+00:00",
       "landed_at": null,
       "commit": null
     }
