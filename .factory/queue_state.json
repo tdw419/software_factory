@@ -49,15 +49,15 @@
       "commit": "a695ac6"
     },
     "r5": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "tick heartbeat staleness threshold",
       "ticket": ".factory/tickets/r5_heartbeat_stale.md",
-      "receipt": null,
+      "receipt": ".factory/receipts/r5_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-18T05:48:33.331254+00:00",
       "claimed_at": "2026-10-18T20:36:01.073448+00:00",
-      "landed_at": null,
-      "commit": null
+      "landed_at": "2026-10-18T20:43:29.591672+00:00",
+      "commit": "1e16dfb"
     },
     "r6": {
       "status": "DRAFT",
