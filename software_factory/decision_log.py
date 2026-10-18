@@ -53,15 +53,20 @@ def read_all(repo):
 
 
 def un_abortedgos(repo, kind: str):
-    """GO records for kind with no abort naming their ts (spend-blocking)."""
+    """GO records for kind with no abort naming their ts (spend-blocking).
+
+    Single pass over the log: abort records pair with GO records by ts
+    value, not by file order, so an abort may precede or follow its
+    target GO. Collect both kinds in one scan, then subtract.
+    """
     gos, aborted = [], set()
+    go_key, abort_key = f"{kind}_go", f"{kind}_go_aborted"
     for r in read_all(repo):
-        if f"{kind}_go_aborted" in r:
-            aborted.add(r[f"{kind}_go_aborted"])
-    for r in read_all(repo):
-        if f"{kind}_go" in r and r.get("ts") not in aborted:
+        if abort_key in r:
+            aborted.add(r[abort_key])
+        if go_key in r:
             gos.append(r)
-    return gos
+    return [g for g in gos if g.get("ts") not in aborted]
 
 
 def mark_aborted(repo, kind: str, go_ts: str, reason: str, actor: str = "operator") -> dict:
