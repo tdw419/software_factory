@@ -40,7 +40,7 @@ def run_shell(repo, cmd_tmpl, prompt_path, run_dir, timeout_s):
     if not cmd_tmpl:
         raise AdapterError(
             "builder.cmd is empty — set it in .factory/config.json "
-            "(e.g. 'hermes --prompt-file {prompt} --workdir {repo} --yolo')"
+            "(e.g. 'hermes chat --query-file {prompt} --oneshot --in {repo} --yolo')"
         )
     cmd = cmd_tmpl.format(repo=str(repo), prompt=str(prompt_path), run_dir=str(run_dir))
     argv = shlex.split(cmd)

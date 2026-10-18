@@ -24,7 +24,7 @@ Nothing to install:
 
     cd my-project
     factory init --lane compositor --verify-cmd "pytest -q" \
-                 --builder-cmd "hermes --prompt-file {prompt} --workdir {repo} --yolo"
+                 --builder-cmd "hermes chat --query-file {prompt} --oneshot --in {repo} --yolo"
 
     # author a ticket
     cp .factory/tickets/_TEMPLATE.md .factory/tickets/t1_drag.md
