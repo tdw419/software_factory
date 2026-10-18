@@ -60,15 +60,15 @@
       "commit": "1e16dfb"
     },
     "r6": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "allowlist glob patterns",
       "ticket": ".factory/tickets/r6_allowlist_globs.md",
-      "receipt": null,
+      "receipt": ".factory/receipts/r6_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-18T05:48:33.331254+00:00",
       "claimed_at": "2026-10-18T20:52:10.307398+00:00",
-      "landed_at": null,
-      "commit": null
+      "landed_at": "2026-10-18T21:03:07.294433+00:00",
+      "commit": "371f1d2"
     }
   },
   "infra_notes": [],
