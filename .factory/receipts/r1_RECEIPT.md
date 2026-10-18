@@ -3,7 +3,18 @@
 Rung: r1 · Lane: sf-next · Work commit: e1d2701
 RED/claim commit: cdd2168
 
-## What was done
+## What PASS proves
+
+`un_abortedgos(repo, kind)` in `software_factory/decision_log.py` calls
+`read_all(repo)` exactly once: the new `test_un_abortedgos_single_pass`
+monkeypatches `decision_log.read_all`, counts invocations, and asserts
+`call_count == 1` — shown RED (assert 2 == 1) against the old two-pass
+code before the refactor, GREEN after. The full suite is green, and a
+probe confirms GO/abort pairing is by ts value, not file order: an
+abort record physically before or after its target GO line both remove
+the GO from the result, matching the old semantics.
+
+## What was changed
 
 `un_abortedgos(repo, kind)` in `software_factory/decision_log.py` previously
 called `read_all(repo)` twice (one pass to collect aborted ts values, a second
