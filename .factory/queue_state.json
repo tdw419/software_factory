@@ -60,13 +60,13 @@
       "commit": "1e16dfb"
     },
     "r6": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "allowlist glob patterns",
       "ticket": ".factory/tickets/r6_allowlist_globs.md",
       "receipt": null,
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-18T05:48:33.331254+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-18T20:52:10.307398+00:00",
       "landed_at": null,
       "commit": null
     }
