@@ -176,6 +176,13 @@ def cmd_log(args):
     return 0
 
 
+def cmd_log_compact(args):
+    repo = _repo(args)
+    code, summary = decision_log.compact(repo, keep=args.keep)
+    print(json_dumps(summary))
+    return code
+
+
 def json_dumps(obj):
     import json
     return json.dumps(obj, ensure_ascii=False)
@@ -307,6 +314,12 @@ def build_parser():
     sp = sub.add_parser("log", help="show decision_log.jsonl")
     sp.add_argument("--tail", type=int, default=0)
     sp.set_defaults(fn=cmd_log)
+    lsub = sp.add_subparsers(dest="sub")
+    sp2 = lsub.add_parser("compact",
+                          help="move entries beyond the newest N to the archive")
+    sp2.add_argument("--keep", type=int, default=decision_log.DEFAULT_KEEP,
+                     help="entries to keep live (default: %(default)s)")
+    sp2.set_defaults(fn=cmd_log_compact)
 
     sp = sub.add_parser("gate", help="GO-gated disruptive operations")
     gsub = sp.add_subparsers(dest="sub", required=True)
