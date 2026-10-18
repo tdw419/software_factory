@@ -24,5 +24,5 @@ untouched.
 ### v0.4.0 — seeded by operator 2026-10-18 (DRAFT; open via `factory ticket set <id> --status OPEN`)
 
 - Rung r4 [LANDED]: decision_log compaction guard — `factory log compact --keep N`, archive + GO-spend survival (`.factory/tickets/r4_log_compaction.md`)
-- Rung r5 [DRAFT]: tick heartbeat staleness threshold — `tick_heartbeat=STALE` when `observer.heartbeat_stale_after_min` exceeded (`.factory/tickets/r5_heartbeat_stale.md`)
+- Rung r5 [LANDED]: tick heartbeat staleness threshold — `tick_heartbeat=STALE` when `observer.heartbeat_stale_after_min` exceeded (`.factory/tickets/r5_heartbeat_stale.md`)
 - Rung r6 [DRAFT]: allowlist glob patterns via fnmatch, exact/prefix semantics preserved (`.factory/tickets/r6_allowlist_globs.md`)
