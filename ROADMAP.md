@@ -20,3 +20,9 @@ untouched.
 - Rung r1 [LANDED]: Single-pass `decision_log.un_abortedgos` + corrupt-line resilience (`.factory/tickets/r1_decision_log_single_pass.md`)
 - Rung r2 [LANDED]: CLI `factory receipt validate <path>` subcommand + paired-fence check (`.factory/tickets/r2_receipt_validate_cli.md`)
 - Rung r3 [LANDED]: `ROADMAP.md` supply-row status check in observer (`.factory/tickets/r3_ladder_sync.md`)
+
+### v0.4.0 — seeded by operator 2026-10-18 (DRAFT; open via `factory ticket set <id> --status OPEN`)
+
+- Rung r4 [DRAFT]: decision_log compaction guard — `factory log compact --keep N`, archive + GO-spend survival (`.factory/tickets/r4_log_compaction.md`)
+- Rung r5 [DRAFT]: tick heartbeat staleness threshold — `tick_heartbeat=STALE` when `observer.heartbeat_stale_after_min` exceeded (`.factory/tickets/r5_heartbeat_stale.md`)
+- Rung r6 [DRAFT]: allowlist glob patterns via fnmatch, exact/prefix semantics preserved (`.factory/tickets/r6_allowlist_globs.md`)
