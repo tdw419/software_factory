@@ -191,6 +191,63 @@ def test_ladder_in_sync_reports_none(repo):
     assert d["ladder_drift"] == "none"
 
 
+def _append_run(repo, name="run1", age_secs=0):
+    """Touch a file in .factory/runs so the tick heartbeat has a source."""
+    import os
+    import time
+
+    runs = repo / ".factory" / "runs"
+    runs.mkdir(exist_ok=True)
+    f = runs / name
+    f.write_text("ok\n")
+    if age_secs:
+        os.utime(f, (time.time() - age_secs, time.time() - age_secs))
+    return f
+
+
+def test_heartbeat_stale_when_threshold_exceeded(repo):
+    healthy_lane(repo)
+    _append_run(repo, age_secs=3600)  # 1h old
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "STALE"
+
+
+def test_heartbeat_ok_when_within_threshold(repo):
+    healthy_lane(repo)
+    _append_run(repo, age_secs=60)
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "OK"
+
+
+def test_heartbeat_missing_when_no_runs_and_threshold_set(repo):
+    healthy_lane(repo)
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "missing"
+
+
+def test_heartbeat_config_absent_byte_stable(repo):
+    # No threshold param -> today's vocabulary untouched: 1h-old runs are
+    # inside the default stale_secs=5400 window, so OK — and STALE must NOT
+    # appear from any new logic. The 5-min threshold is only engaged
+    # explicitly by the caller (config present case, tested above).
+    healthy_lane(repo)
+    _append_run(repo, age_secs=3600)
+    lines = observer.observe(repo)
+    d = dict(ln.split("=", 1) for ln in lines)
+    assert d["tick_heartbeat"] == "OK"
+    assert not any(ln == "tick_heartbeat=STALE" for ln in lines)
+    assert not any(ln == "tick_heartbeat=missing" for ln in lines)
+
+
+def test_heartbeat_no_runs_legacy_vocabulary_unchanged(repo):
+    healthy_lane(repo)
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["tick_heartbeat"] == "NO_RUNS"
+
+
 def test_observer_surfaces_armed_gate(repo):
     from software_factory import gate
     healthy_lane(repo)

@@ -49,13 +49,13 @@
       "commit": "a695ac6"
     },
     "r5": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "tick heartbeat staleness threshold",
       "ticket": ".factory/tickets/r5_heartbeat_stale.md",
       "receipt": null,
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-18T05:48:33.331254+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-18T20:36:01.073448+00:00",
       "landed_at": null,
       "commit": null
     },
@@ -78,9 +78,9 @@
     "receipt per ticket; the receipt states what PASS does NOT prove",
     "dependency pins frozen unless a ticket explicitly upgrades them with a receipt",
     "never absorb pre-existing failures into a ticket's gate; count and name them once, then exclude explicitly",
-    "WAKE DISCIPLINE: every tick ENDS with a commit, even a decisions-only one (append an infra_notes line if nothing else landed) — a tick that commits nothing leaves the digest unchanged, the next tick is silently suppressed, and the lane dies at its first idle tick",
-    "PACKAGE INSTALLS (operator pre-approval): on a measured missing-dependency wall, record an ASK entry (exact packages + measured reason) in the same commit and proceed — additive installs only, nothing touching repo/git state; non-additive or uncertain needs: record the ask and end the tick",
-    "COMMIT PER SUB-STEP: the iteration cap can arrive before 'the end' — never hold finished sub-steps in the tree; commit each as it completes (work + queue/log updates together) so any cap or stall loses at most the current sub-step",
+    "WAKE DISCIPLINE: every tick ENDS with a commit, even a decisions-only one (append an infra_notes line if nothing else landed) \u2014 a tick that commits nothing leaves the digest unchanged, the next tick is silently suppressed, and the lane dies at its first idle tick",
+    "PACKAGE INSTALLS (operator pre-approval): on a measured missing-dependency wall, record an ASK entry (exact packages + measured reason) in the same commit and proceed \u2014 additive installs only, nothing touching repo/git state; non-additive or uncertain needs: record the ask and end the tick",
+    "COMMIT PER SUB-STEP: the iteration cap can arrive before 'the end' \u2014 never hold finished sub-steps in the tree; commit each as it completes (work + queue/log updates together) so any cap or stall loses at most the current sub-step",
     "GATE TIMEOUTS: every gate command runs under an explicit timeout below the scheduler's kill threshold; a suite that genuinely needs longer runs backgrounded with a polled log file",
     "COMMIT SCOPE: enumerate exact paths per commit; never 'git add -A' or bare 'git add .'; out-of-scope dirty files only in a separate commit naming provenance",
     "RECURSION GUARD (kernel freeze): never autonomously modify gate.py GO-spend accounting or tick.py lock/park/verify-gate logic; any change to those surfaces requires an operator-fired GO gate (kind='kernel_edit')"
