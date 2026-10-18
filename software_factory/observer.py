@@ -55,7 +55,8 @@ def _ladder_statuses(repo, ladder: dict) -> dict:
     return out
 
 
-def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list:
+def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None,
+            heartbeat_stale_after_min=None) -> list:
     """Return the stable state lines. Read-only; never raises for lane faults."""
     repo = Path(repo)
     lines = []
@@ -150,16 +151,29 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list
     runs = queue_state.factory_dir(repo) / "runs"
     try:
         mt = max(os.path.getmtime(os.path.join(runs, f)) for f in os.listdir(runs))
-        lines.append("tick_heartbeat=" + ("STALL" if time.time() - mt > stale_secs else "OK"))
+        if heartbeat_stale_after_min is not None:
+            # config engaged: categorical OK|STALE against now-minus-threshold
+            # (STALE is a state change -> the cron observer leg wakes the agent)
+            stale = time.time() - mt > heartbeat_stale_after_min * 60
+            lines.append("tick_heartbeat=" + ("STALE" if stale else "OK"))
+        else:
+            # config absent: legacy vocabulary, byte-identical behavior
+            lines.append("tick_heartbeat="
+                         + ("STALL" if time.time() - mt > stale_secs else "OK"))
     except (OSError, ValueError):
-        lines.append("tick_heartbeat=NO_RUNS")
+        if heartbeat_stale_after_min is not None:
+            lines.append("tick_heartbeat=missing")
+        else:
+            lines.append("tick_heartbeat=NO_RUNS")
 
     return lines
 
 
-def run(repo, log_dir=None, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list:
+def run(repo, log_dir=None, stale_secs=5400, watch_rules=(), churn_allowlist=None,
+        heartbeat_stale_after_min=None) -> list:
     lines = observe(repo, stale_secs=stale_secs, watch_rules=watch_rules,
-                    churn_allowlist=churn_allowlist)
+                    churn_allowlist=churn_allowlist,
+                    heartbeat_stale_after_min=heartbeat_stale_after_min)
     print("\n".join(lines))
     if log_dir:
         state = "\n".join(lines)
