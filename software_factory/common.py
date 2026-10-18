@@ -69,6 +69,24 @@ def resolve_allowlist(repo, allowlist=None) -> tuple:
     return DEFAULT_ALLOWLIST
 
 
+def resolve_ladder(repo, ladder=None) -> dict:
+    """Resolve the ladder config for repo from explicit arg or digest.ladder
+    in .factory/config.json — same source digest.compute() hashes. Empty dict
+    when unconfigured."""
+    if ladder is not None:
+        return dict(ladder)
+    cfg_path = factory_dir(repo) / "config.json"
+    if cfg_path.exists():
+        try:
+            cfg = load_json(cfg_path)
+            lp = cfg.get("digest", {}).get("ladder")
+            if lp is not None:
+                return dict(lp)
+        except Exception:
+            pass
+    return {}
+
+
 def validate_receipt(path: Path) -> list:
     """Validate that a receipt file exists, is a regular file, contains all
     required sections (including 'What this does NOT prove'), and carries at
