@@ -24,3 +24,4 @@
 {"actor": "factory-tick", "tick": {"rung": "r5", "wake": "change", "resuming": false, "builder_exit": 0, "verify": "pass", "head_before": "34bd57c596e4", "head_after": "69c41b9738e3", "receipt": ".factory/receipts/r5_RECEIPT.md", "rung_status": "LANDED"}, "ts": "2026-10-18T20:46:05.606021+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "r6", "status": "OPEN"}, "ts": "2026-10-18T20:47:35.375027+00:00"}
 {"actor": "builder", "claim": {"rung": "r6", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-18T20:52:10.307398+00:00"}
+{"actor": "builder", "note": "r6 fix: _single_path_under_allowlist routes entries with *?[ through fnmatch.fnmatch (full rel path); exact/prefix branch untouched; digest+observer share it via is_under_allowlist", "ts": "2026-10-18T20:57:36.896295+00:00"}

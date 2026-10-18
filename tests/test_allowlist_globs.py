@@ -87,6 +87,8 @@ def test_glob_allowlisted_ticket_still_moves_TICKETS_channel(repo):
     allow = (".factory/tickets/*.md", ".factory/decision_log.jsonl",
              ".factory/state.json", ".factory/runs/", ".factory/asks/",
              ".factory/pending_gate.json", ".factory/tick.lock")
+    git(repo, "add", ".factory")
+    git(repo, "commit", "-qm", "lane files")  # no untracked noise in status
     (repo / ".factory" / "tickets" / "t9_w.md").write_text("v1\n")
     git(repo, "add", ".factory/tickets/t9_w.md")
     git(repo, "commit", "-qm", "ticket t9")

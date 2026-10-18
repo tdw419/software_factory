@@ -1,5 +1,6 @@
 """Shared helpers: atomic writes, timestamps, git shells, hashing, paths."""
 
+import fnmatch
 import hashlib
 import json
 import os
@@ -33,6 +34,8 @@ def factory_dir(repo) -> Path:
 
 
 #: Paths whose churn must never wake the lane. Directories match by prefix.
+#: Entries containing glob metacharacters (* ? [) match via fnmatch against
+#: the full lane-relative path (r6); entries without keep exact/prefix.
 DEFAULT_ALLOWLIST = (
     ".factory/decision_log.jsonl",
     ".factory/state.json",
@@ -128,7 +131,13 @@ def has_fenced_block_under(text: str, heading: str) -> bool:
 
 def is_under_allowlist(path: str, allowlist) -> bool:
     """Check if a lane-relative path matches any entry in the churn allowlist
-    on a proper path-separator boundary."""
+    on a proper path-separator boundary. Entries containing glob metacharacters
+    (* ? [) match via fnmatch.fnmatch against the full relative path; entries
+    without them keep exact/dir-prefix matching. Digest and observer share
+    this matcher (via scoped_dirty_rows) — one implementation, both surfaces.
+    NOTE: a glob allowlisting digest-channel files (queue_state.json, the
+    ladder path, tickets) only suppresses TREE rows — QUEUE/TICKETS/LADDER
+    are hashed independently and still move the fingerprint."""
     path = path.strip()
     if " -> " in path:
         # git status --porcelain rename format: "R  old -> new"
@@ -143,13 +152,27 @@ def _strip_dot_slash(p: str) -> str:
     return p
 
 
+def _has_glob_meta(entry: str) -> bool:
+    return any(m in entry for m in "*?[")
+
+
 def _single_path_under_allowlist(path: str, allowlist) -> bool:
     path = _strip_dot_slash(path)
     for a in allowlist:
         a_clean = _strip_dot_slash(a.strip()).rstrip("/")
         if not a_clean:
             continue
-        if path == a_clean or path.startswith(a_clean + "/"):
+        if _has_glob_meta(a_clean):
+            # r6: entries with glob metacharacters (* ? [) match via fnmatch
+            # against the FULL lane-relative path (so `*.lock` matches a file
+            # in any directory and `audits/*.md` stays scoped to audits/).
+            # fnmatch's `*` crosses path separators — document, don't fight it:
+            # directory scoping must be written into the pattern (`audits/*`).
+            # Entries WITHOUT metacharacters keep the exact/prefix semantics
+            # below, so existing configs behave byte-identically.
+            if fnmatch.fnmatch(path, a_clean):
+                return True
+        elif path == a_clean or path.startswith(a_clean + "/"):
             return True
     return False
 
