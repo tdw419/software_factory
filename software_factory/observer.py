@@ -18,8 +18,10 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import queue_state
-from .common import atomic_write_text, git, scoped_dirty_rows, sha12, validate_receipt
+from . import decision_log, queue_state
+from .common import (atomic_write_text, git, resolve_kernel_paths,
+                     scoped_dirty_rows, sha12, touched_kernel_paths,
+                     validate_receipt)
 
 
 def _classify_handle(repo, handle: str) -> str:
@@ -67,6 +69,19 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list
         lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
         if incomplete:
             lines.append("receipts_incomplete=" + ",".join(incomplete))
+
+        kpaths = resolve_kernel_paths(repo)
+        if kpaths:
+            base_head = q.get("repo_head_at_lane_creation") or ""
+            ktouched = touched_kernel_paths(repo, base_head, "HEAD",
+                                            include_working_tree=True,
+                                            kernel_paths=kpaths)
+            if not ktouched:
+                lines.append("kernel_guard=OK")
+            elif decision_log.un_abortedgos(repo, "kernel_edit"):
+                lines.append("kernel_guard=AUTHORIZED(" + ",".join(ktouched) + ")")
+            else:
+                lines.append("kernel_guard=VIOLATION(" + ",".join(ktouched) + ")")
 
     # an armed gate that never fires is invisible to every other surface;
     # surface it as stable lines (staleness bucketed to yes/no so stdout

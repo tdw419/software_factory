@@ -56,6 +56,22 @@ FAKE_BUILDER = textwrap.dedent("""\
         g("add", ".factory/queue_state.json",
           f".factory/receipts/{rid}_RECEIPT.md")
         g("commit", "-qm", f"{rid}: unclaimed land")
+    elif mode == "kernel_edit":
+        (repo / "app.py").write_text("print('kernel modified')\\n")
+        q["rungs"][rid].update(status="LANDED", claimed_by="fake-builder",
+                               claimed_at="t", landed_at="t", commit="PENDING")
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
+            "# RECEIPT\\n\\n## What PASS proves\\nkernel\\n"
+            "## What this does NOT prove\\n- limits\\n")
+        g("add", "app.py", ".factory/queue_state.json",
+          f".factory/receipts/{rid}_RECEIPT.md")
+        g("commit", "-qm", f"{rid}: kernel edit")
+        sha = g("rev-parse", "HEAD").stdout.strip()
+        q["rungs"][rid]["commit"] = sha
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        g("add", ".factory/queue_state.json")
+        g("commit", "-qm", f"{rid}: pin sha")
     # mode "nothing": exit 0 without touching anything
 """)
 
@@ -249,3 +265,35 @@ def test_unclaimed_in_progress_violates_queue_discipline(repo):
     assert "QUEUE DISCIPLINE" in failed[-1]["tick_failed"]["problem"]
     # and it was NOT a wake-discipline hit: the builder did commit
     assert "WAKE DISCIPLINE" not in failed[-1]["tick_failed"]["problem"]
+
+
+def test_recursion_guard_blocks_unauthorized_kernel_edit_and_allows_with_go(repo):
+    from software_factory import gate
+    setup_builder(repo, "kernel_edit")
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+
+    # 1. Without a fired kind="kernel_edit" GO, modifying app.py fails the tick
+    code, msg = tick.run_tick(repo)
+    assert code == tick.EXIT_BUILDER_FAILED
+    assert "RECURSION GUARD" in msg
+    assert "app.py" in msg
+
+    # Reset rung to OPEN so a second tick after operator GO can dispatch it
+    qp = repo / ".factory" / "queue_state.json"
+    q = json.loads(qp.read_text())
+    q["rungs"]["t1"]["status"] = "OPEN"
+    qp.write_text(json.dumps(q, indent=2))
+    (repo / "app.py").write_text("print('v1')\n")
+    git(repo, "add", "app.py", ".factory/queue_state.json")
+    git(repo, "commit", "-qm", "reset for authorized kernel edit")
+
+    # 2. Operator arms and fires kind="kernel_edit" GO -> tick succeeds
+    gate.arm(repo, "kernel_edit", "GO kernel — app.py", ["true"])
+    gcode, _ = gate.fire(repo, "GO kernel — app.py")
+    assert gcode == 0
+    code2, msg2 = tick.run_tick(repo)
+    assert code2 == tick.EXIT_OK, msg2
+    assert msg2.startswith("WAKE")

@@ -114,4 +114,5 @@ DEFAULT_CONFIG = {
         "stale_secs": 5400,
         "watch_rules": [],
     },
+    "kernel_paths": [],
 }

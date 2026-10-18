@@ -20,7 +20,8 @@ import subprocess
 from pathlib import Path
 
 from . import adapters, decision_log, digest, queue_state
-from .common import atomic_write_text, dump_json, git, load_json, now_iso, sh, validate_receipt
+from .common import (atomic_write_text, dump_json, git, load_json, now_iso,
+                     sh, touched_kernel_paths, validate_receipt)
 from .templates import DEFAULT_CONFIG, PROMPT_TEMPLATE
 
 STATE_NAME = "state.json"
@@ -239,6 +240,17 @@ def _run_tick_locked(repo, cfg, fdir, force=False, dry_run=False,
         problems.append("QUEUE DISCIPLINE: rung left IN_PROGRESS with no claimed_by — "
                         "next_actionable can never resume it (rule 1: claim the rung "
                         "in the same commit as the work)")
+
+    k_touched = touched_kernel_paths(
+        repo, head_before, head_after,
+        include_working_tree=True,
+        kernel_paths=cfg.get("kernel_paths"),
+    )
+    if k_touched and not decision_log.un_abortedgos(repo, "kernel_edit"):
+        problems.append(
+            f"RECURSION GUARD: kernel surfaces modified ({', '.join(k_touched)}) "
+            f"without an un-aborted kind='kernel_edit' GO in decision_log"
+        )
 
     if problems:
         code, msg, st = _record_failure(repo, state, rid, fp, "; ".join(problems),

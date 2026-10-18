@@ -184,3 +184,27 @@ def test_observer_flags_stale_and_unreadable_gate(repo):
     pg.write_text("{not json")
     d = dict(ln.split("=", 1) for ln in observer.observe(repo))
     assert d["gate_armed"] == "UNREADABLE"
+
+
+def test_observer_surfaces_kernel_guard_violation_and_authorization(repo):
+    from software_factory import gate
+    healthy_lane(repo)
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+
+    # Clean untouched kernel -> OK
+    d0 = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d0["kernel_guard"] == "OK"
+
+    # Dirty kernel without GO -> VIOLATION(app.py)
+    (repo / "app.py").write_text("print('unauthorized')\n")
+    d1 = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d1["kernel_guard"] == "VIOLATION(app.py)"
+
+    # Fired kernel_edit GO -> AUTHORIZED(app.py)
+    gate.arm(repo, "kernel_edit", "GO kernel — app.py", ["true"])
+    gate.fire(repo, "GO kernel — app.py")
+    d2 = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d2["kernel_guard"] == "AUTHORIZED(app.py)"

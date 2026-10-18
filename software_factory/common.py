@@ -107,6 +107,73 @@ def _single_path_under_allowlist(path: str, allowlist) -> bool:
     return False
 
 
+#: Default kernel files whose modification requires a fired kind="kernel_edit" GO
+#: when kernel_guard is enabled (or when kernel_paths is non-empty).
+DEFAULT_KERNEL_PATHS = ()
+
+
+def resolve_kernel_paths(repo, kernel_paths=None) -> tuple:
+    """Resolve protected kernel paths for repo from explicit arg or .factory/config.json."""
+    if kernel_paths is not None:
+        return tuple(kernel_paths)
+    cfg_path = factory_dir(repo) / "config.json"
+    if cfg_path.exists():
+        try:
+            cfg = load_json(cfg_path)
+            kp = cfg.get("kernel_paths")
+            if kp is not None:
+                return tuple(kp)
+        except Exception:
+            pass
+    return DEFAULT_KERNEL_PATHS
+
+
+def touched_kernel_paths(repo, base_rev: str, target_rev: str = "HEAD",
+                         include_working_tree: bool = True,
+                         kernel_paths=None) -> list:
+    """Return sorted list of lane-relative paths matching kernel_paths that were
+    modified between base_rev and target_rev (plus uncommitted working-tree edits
+    if include_working_tree=True)."""
+    repo = Path(repo)
+    kpaths = resolve_kernel_paths(repo, kernel_paths)
+    if not kpaths:
+        return []
+    root = git_root(repo)
+    if root is None:
+        return []
+    rel = os.path.relpath(repo, root)
+    changed = set()
+
+    if base_rev and base_rev != "UNREADABLE" and target_rev and target_rev != "UNREADABLE":
+        r = git(root, "diff", "--name-only", base_rev, target_rev)
+        if r.returncode == 0:
+            for ln in r.stdout.splitlines():
+                if ln.strip():
+                    changed.add(ln.strip())
+
+    if include_working_tree:
+        st = git(root, "status", "--porcelain", "-uall")
+        if st.returncode == 0:
+            for ln in st.stdout.splitlines():
+                if not ln.strip():
+                    continue
+                p = ln[3:] if len(ln) > 3 else ln
+                changed.add(p.split(" -> ", 1)[-1].strip().strip('"'))
+
+    matched = []
+    for p in sorted(changed):
+        if rel != ".":
+            prefix = rel + os.sep
+            if not (p == rel or p.startswith(prefix)):
+                continue
+            p_rel = os.path.relpath(p, rel)
+        else:
+            p_rel = p
+        if is_under_allowlist(p_rel, kpaths):
+            matched.append(p_rel)
+    return matched
+
+
 def scoped_dirty_rows(repo, allowlist=None) -> tuple:
     """Return (ok: bool, rows: list[str]) of dirty git status lines scoped to repo
     and filtered by allowlist."""
