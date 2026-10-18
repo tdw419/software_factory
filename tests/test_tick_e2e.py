@@ -159,12 +159,16 @@ def test_verify_red_blocks_landing(repo):
     recs = decision_log.read_all(repo)
     failed = [r for r in recs if "tick_failed" in r]
     assert failed and "verify gate RED" in failed[-1]["tick_failed"]["problem"]
-    # fingerprint NOT advanced → the next tick re-wakes instead of suppressing;
-    # here the builder DID land the rung (commits moved HEAD), so the wake
-    # finds no actionable ticket — the point is it did NOT say SUPPRESSED
+    # Because the post-check failed, tick.py demoted t1 from LANDED -> IN_PROGRESS
+    # (preserving claimed_by) and recorded rung_demoted so the next tick retries t1
+    # instead of stranding it as WAKE no_actionable_ticket.
+    assert any("rung_demoted" in r and r["rung_demoted"]["rung"] == "t1" for r in recs)
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    assert q["rungs"]["t1"]["status"] == "IN_PROGRESS"
+    assert q["rungs"]["t1"]["claimed_by"] == "fake-builder"
     code2, msg2 = tick.run_tick(repo)
-    assert code2 == tick.EXIT_OK
-    assert msg2.startswith("WAKE no_actionable_ticket")
+    assert code2 == tick.EXIT_VERIFY_RED
+    assert "FAIL rung t1" in msg2
 
 
 def test_dry_run_leaves_no_state(repo):
@@ -250,6 +254,10 @@ def test_sloppy_receipt_missing_proof_limits_rejected(repo):
     assert code == tick.EXIT_BUILDER_FAILED
     assert "receipt incomplete" in msg
     assert "## What this does NOT prove" in msg
+    # Rung was automatically demoted from LANDED -> IN_PROGRESS so next tick retries
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    assert q["rungs"]["t1"]["status"] == "IN_PROGRESS"
+    assert q["rungs"]["t1"]["claimed_by"] == "fake-builder"
 
 
 def test_unclaimed_in_progress_violates_queue_discipline(repo):
@@ -276,24 +284,39 @@ def test_recursion_guard_blocks_unauthorized_kernel_edit_and_allows_with_go(repo
     cfg_p.write_text(json.dumps(cfg, indent=2))
 
     # 1. Without a fired kind="kernel_edit" GO, modifying app.py fails the tick
+    # and demotes t1 from LANDED -> IN_PROGRESS automatically
     code, msg = tick.run_tick(repo)
     assert code == tick.EXIT_BUILDER_FAILED
     assert "RECURSION GUARD" in msg
     assert "app.py" in msg
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    assert q["rungs"]["t1"]["status"] == "IN_PROGRESS"
+    assert any("rung_demoted" in r for r in decision_log.read_all(repo))
 
-    # Reset rung to OPEN so a second tick after operator GO can dispatch it
-    qp = repo / ".factory" / "queue_state.json"
-    q = json.loads(qp.read_text())
-    q["rungs"]["t1"]["status"] = "OPEN"
-    qp.write_text(json.dumps(q, indent=2))
     (repo / "app.py").write_text("print('v1')\n")
     git(repo, "add", "app.py", ".factory/queue_state.json")
-    git(repo, "commit", "-qm", "reset for authorized kernel edit")
+    git(repo, "commit", "-qm", "revert unauthorized kernel edit")
 
-    # 2. Operator arms and fires kind="kernel_edit" GO -> tick succeeds
+    # 2. Operator arms and fires kind="kernel_edit" GO -> tick resumes t1 and succeeds
     gate.arm(repo, "kernel_edit", "GO kernel — app.py", ["true"])
     gcode, _ = gate.fire(repo, "GO kernel — app.py")
     assert gcode == 0
     code2, msg2 = tick.run_tick(repo)
     assert code2 == tick.EXIT_OK, msg2
     assert msg2.startswith("WAKE")
+
+
+def test_prompt_template_contains_all_required_receipt_sections():
+    from pathlib import Path
+    from software_factory.common import REQUIRED_RECEIPT_SECTIONS
+    from software_factory.templates import PROMPT_TEMPLATE, RECEIPT_TEMPLATE
+
+    repo_root = Path(__file__).resolve().parents[1]
+    file_prompt = (repo_root / "templates" / "PROMPT_TEMPLATE.md").read_text(encoding="utf-8")
+    file_receipt = (repo_root / "templates" / "RECEIPT_TEMPLATE.md").read_text(encoding="utf-8")
+
+    for sec in REQUIRED_RECEIPT_SECTIONS:
+        assert sec in PROMPT_TEMPLATE, f"PROMPT_TEMPLATE missing required heading {sec!r}"
+        assert sec in file_prompt, f"templates/PROMPT_TEMPLATE.md missing required heading {sec!r}"
+        assert sec in RECEIPT_TEMPLATE, f"RECEIPT_TEMPLATE missing required heading {sec!r}"
+        assert sec in file_receipt, f"templates/RECEIPT_TEMPLATE.md missing required heading {sec!r}"
