@@ -27,6 +27,31 @@ def test_cli_ticket_add_and_log(repo, capsys):
     assert "t9" in out
 
 
+def test_cli_receipt_validate(repo, capsys):
+    init_lane(repo)
+    rel = ".factory/receipts/t1_RECEIPT.md"
+    rcpt = repo / rel
+    good = ("# RECEIPT — t1\n\n## What PASS proves\nok\n\n"
+            "## Commands and outputs (paired in the same fence)\n"
+            "```bash\n$ true\n# ok\n```\n\n"
+            "## What this does NOT prove\n- limit\n")
+    # valid receipt: sections + fenced block under Commands and outputs -> 0
+    rcpt.write_text(good, encoding="utf-8")
+    assert main(["--repo", str(repo), "receipt", "validate", rel]) == 0
+    assert ": ok" in capsys.readouterr().out
+    # fenced block removed -> 1
+    rcpt.write_text(good.replace("```bash\n$ true\n# ok\n```\n", ""),
+                    encoding="utf-8")
+    assert main(["--repo", str(repo), "receipt", "validate", rel]) == 1
+    out = capsys.readouterr().out
+    assert "Commands and outputs" in out
+    # missing required section -> 1
+    rcpt.write_text(good.replace("## What this does NOT prove\n- limit\n", ""),
+                    encoding="utf-8")
+    assert main(["--repo", str(repo), "receipt", "validate", rel]) == 1
+    assert "## What this does NOT prove" in capsys.readouterr().out
+
+
 def test_cli_ask_flow(repo, capsys):
     init_lane(repo)
     rc = main(["--repo", str(repo), "ask", "create", "--subject", "packages",

@@ -5,3 +5,4 @@
 {"actor": "hermes-cli", "infra_notes": {"rung": "r1", "note": "receipt fix on resume: renamed missing section to exact heading \"## What PASS proves\" per REQUIRED_RECEIPT_SECTIONS; validate_receipt now returns NONE; rung re-landed LANDED commit e1d2701"}, "ts": "2026-10-18T01:29:06.585099+00:00"}
 {"actor": "factory-tick", "tick": {"rung": "r1", "wake": "change", "resuming": true, "builder_exit": 0, "verify": "pass", "head_before": "693732f82bbc", "head_after": "a2b5cb24de4b", "receipt": ".factory/receipts/r1_RECEIPT.md", "rung_status": "LANDED"}, "ts": "2026-10-18T01:29:37.872163+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "r2", "status": "OPEN"}, "ts": "2026-10-18T01:37:49.562496+00:00"}
+{"actor": "hermes-cli", "rung_updated": {"rung": "r2", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-18T01:41:42.739307+00:00"}

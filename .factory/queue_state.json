@@ -16,13 +16,13 @@
       "commit": "e1d2701"
     },
     "r2": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "CLI receipt validate subcommand + paired-fence check",
       "ticket": ".factory/tickets/r2_receipt_validate_cli.md",
       "receipt": ".factory/receipts/r2_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-18T00:37:49.883771+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-18T01:41:42.739173+00:00",
       "landed_at": null,
       "commit": null
     },
