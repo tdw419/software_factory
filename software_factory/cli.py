@@ -245,7 +245,8 @@ def cmd_observe(args):
     obs = cfg["observer"] if cfg else {}
     observer.run(repo, log_dir=args.log_dir,
                  stale_secs=args.stale_secs or obs.get("stale_secs", 5400),
-                 watch_rules=obs.get("watch_rules", ()))
+                 watch_rules=obs.get("watch_rules", ()),
+                 heartbeat_stale_after_min=obs.get("heartbeat_stale_after_min"))
     return 0
 
 
