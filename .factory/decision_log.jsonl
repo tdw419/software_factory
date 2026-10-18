@@ -14,3 +14,4 @@
 {"actor": "operator", "rung_updated": {"rung": "r3", "status": "LANDED", "commit": "c5b1c19"}, "ts": "2026-10-18T05:19:52.367110+00:00"}
 {"actor": "factory-tick", "tick": {"rung": "r3", "wake": "change", "resuming": false, "builder_exit": 0, "verify": "pass", "head_before": "e39cc83683c8", "head_after": "339a386dd80e", "receipt": ".factory/receipts/r3_RECEIPT.md", "rung_status": "LANDED"}, "ts": "2026-10-18T05:21:19.255314+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "r4", "status": "OPEN"}, "ts": "2026-10-18T19:37:10.418971+00:00"}
+{"actor": "operator", "rung_updated": {"rung": "r4", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-18T19:42:00.458052+00:00"}

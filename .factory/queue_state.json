@@ -38,13 +38,13 @@
       "commit": "c5b1c19"
     },
     "r4": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "decision_log compaction guard",
       "ticket": ".factory/tickets/r4_log_compaction.md",
       "receipt": null,
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-18T05:48:33.331254+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-18T19:42:00.449027+00:00",
       "landed_at": null,
       "commit": null
     },
