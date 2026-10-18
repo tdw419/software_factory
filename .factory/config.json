@@ -1,0 +1,39 @@
+{
+  "lane": "sf-next",
+  "operator": "operator",
+  "builder": {
+    "adapter": "shell",
+    "cmd": "/home/jericho/.local/bin/hermes chat --query-file {prompt} --oneshot --in {repo} --yolo",
+    "timeout_s": 1500
+  },
+  "verify": {
+    "cmd": "/usr/bin/python3.12 -m pytest tests/ -q",
+    "timeout_s": 170,
+    "required": true
+  },
+  "digest": {
+    "churn_allowlist": [
+      ".factory/decision_log.jsonl",
+      ".factory/state.json",
+      ".factory/runs/",
+      ".factory/asks/",
+      ".factory/pending_gate.json",
+      ".factory/tick.lock"
+    ],
+    "ladder": {
+      "path": "ROADMAP.md",
+      "line_prefix": "- Rung"
+    }
+  },
+  "observer": {
+    "stale_secs": 5400,
+    "watch_rules": [
+      "WAKE DISCIPLINE",
+      "RECURSION GUARD"
+    ]
+  },
+  "kernel_paths": [
+    "software_factory/gate.py",
+    "software_factory/tick.py"
+  ]
+}
