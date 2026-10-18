@@ -14,14 +14,15 @@ Port of the live lane's compositor_observer_monitor.py, generalized:
 
 import json
 import os
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
 from . import decision_log, queue_state
 from .common import (atomic_write_text, git, resolve_kernel_paths,
-                     scoped_dirty_rows, sha12, touched_kernel_paths,
-                     validate_receipt)
+                     resolve_ladder, scoped_dirty_rows, sha12,
+                     touched_kernel_paths, validate_receipt)
 
 
 def _classify_handle(repo, handle: str) -> str:
@@ -31,6 +32,27 @@ def _classify_handle(repo, handle: str) -> str:
         return "PROSE"
     r = git(repo, "cat-file", "-e", f"{handle}^{{commit}}")
     return "RESOLVED" if r.returncode == 0 else "BROKEN"
+
+
+#: A ladder line is `- Rung <id> [<STATUS>]: ...` (line prefix configurable).
+_LADDER_LINE = re.compile(r"^\S+\s+\[([^\]]+)\]")
+
+
+def _ladder_statuses(repo, ladder: dict) -> dict:
+    """Map rung id -> status from the configured ladder file. Read-only."""
+    lp = repo / ladder["path"]
+    if not lp.is_file():
+        return {}
+    prefix = ladder.get("line_prefix", "- Rung")
+    out = {}
+    for ln in lp.read_text(encoding="utf-8").splitlines():
+        if not ln.startswith(prefix):
+            continue
+        rest = ln[len(prefix):].strip()
+        m = _LADDER_LINE.match(rest)
+        if m:
+            out[rest.split(None, 1)[0]] = m.group(1)
+    return out
 
 
 def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list:
@@ -69,6 +91,19 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list
         lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
         if incomplete:
             lines.append("receipts_incomplete=" + ",".join(incomplete))
+
+        # ladder drift: rung statuses in the ROADMAP/ladder file vs queue_state.
+        # Only compare rungs present in BOTH; unconfigured or missing ladder
+        # file emits nothing (the line itself only exists when checkable).
+        ladder = resolve_ladder(repo)
+        if ladder.get("path"):
+            ladder_st = _ladder_statuses(repo, ladder)
+            drift = sorted(
+                rid for rid, st in ladder_st.items()
+                if rid in q.get("rungs", {})
+                and q["rungs"][rid].get("status") != st
+            )
+            lines.append("ladder_drift=" + (",".join(drift) if drift else "none"))
 
         kpaths = resolve_kernel_paths(repo)
         if kpaths:
