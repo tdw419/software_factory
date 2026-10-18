@@ -20,6 +20,21 @@ def test_go_abort_pairing(repo):
     assert decision_log.un_abortedgos(repo, "scanout") == []
 
 
+def test_un_abortedgos_single_pass(repo, monkeypatch):
+    decision_log.append(repo, {"actor": "op", "scanout_go": "GO now"})
+    calls = {"n": 0}
+    real_read_all = decision_log.read_all
+
+    def counting_read_all(r):
+        calls["n"] += 1
+        return real_read_all(r)
+
+    monkeypatch.setattr(decision_log, "read_all", counting_read_all)
+    gos = decision_log.un_abortedgos(repo, "scanout")
+    assert calls["n"] == 1
+    assert len(gos) == 1 and gos[0]["scanout_go"] == "GO now"
+
+
 def test_queue_validation(repo):
     init_lane(repo)
     q = queue_state.load(repo)
