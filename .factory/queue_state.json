@@ -49,7 +49,7 @@
       "commit": "a695ac6"
     },
     "r5": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "tick heartbeat staleness threshold",
       "ticket": ".factory/tickets/r5_heartbeat_stale.md",
       "receipt": null,
