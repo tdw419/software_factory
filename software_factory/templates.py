@@ -23,7 +23,8 @@ You are the builder for this lane tick. Repository: {repo}
 - COMMIT SCOPE: enumerate exact paths; never `git add -A` or bare `git add .`.
 - RED-first: prove the verification gate can fail before trusting GREEN.
 - Write the receipt at {receipt_path}: commands and outputs PAIRED in the
-  same fence, plus an explicit "What this does NOT prove" section.
+  same fence, with exact section headings `## What PASS proves` and
+  `## What this does NOT prove` (follow .factory/receipts/_TEMPLATE.md).
 - Land the rung in queue_state.json: status=LANDED, landed_at, and
   commit=<the real sha> (or `factory ticket set {rung_id} --status LANDED --commit <sha>`).
   NEVER the prose "this commit".

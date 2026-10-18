@@ -253,7 +253,23 @@ def _run_tick_locked(repo, cfg, fdir, force=False, dry_run=False,
         )
 
     if problems:
-        code, msg, st = _record_failure(repo, state, rid, fp, "; ".join(problems),
+        problem_str = "; ".join(problems)
+        if rstatus == "LANDED":
+            rq["rungs"][rid]["status"] = "IN_PROGRESS"
+            if not rq["rungs"][rid].get("claimed_by"):
+                rq["rungs"][rid]["claimed_by"] = "lane"
+                rq["rungs"][rid]["claimed_at"] = now_iso()
+            queue_state.save(repo, rq)
+            decision_log.append(repo, {
+                "actor": "factory-tick",
+                "rung_demoted": {
+                    "rung": rid,
+                    "from": "LANDED",
+                    "to": "IN_PROGRESS",
+                    "reason": problem_str,
+                },
+            })
+        code, msg, st = _record_failure(repo, state, rid, fp, problem_str,
                                         head_before, verify=verify_status,
                                         head_after=head_after,
                                         exit_code=EXIT_VERIFY_RED if verify_status == "RED" else EXIT_BUILDER_FAILED)

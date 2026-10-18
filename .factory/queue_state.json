@@ -2,7 +2,7 @@
   "lane": "sf-next",
   "charter": "ROADMAP.md",
   "created": "2026-10-18T00:37:04.880453+00:00",
-  "repo_head_at_lane_creation": "6d16f199bd53",
+  "repo_head_at_lane_creation": "583c73fcf682",
   "rungs": {
     "r1": {
       "status": "LANDED",
