@@ -141,6 +141,12 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None) -> list
     else:
         lines.append("tree=UNREADABLE")
 
+    # log compaction surface: bucketed existence of the archive file, so
+    # the line is stable between ticks until a compact() actually runs
+    lines.append("log_archive="
+                 + ("yes" if (queue_state.factory_dir(repo)
+                              / decision_log.ARCHIVE_NAME).is_file() else "no"))
+
     runs = queue_state.factory_dir(repo) / "runs"
     try:
         mt = max(os.path.getmtime(os.path.join(runs, f)) for f in os.listdir(runs))
