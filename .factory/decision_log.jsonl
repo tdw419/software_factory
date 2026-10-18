@@ -1,2 +1,4 @@
 {"actor": "operator", "rung_updated": {"rung": "r1", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-18T01:04:58.384257+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "r1", "status": "LANDED", "commit": "e1d2701"}, "ts": "2026-10-18T01:10:36.918955+00:00"}
+{"actor": "factory-tick", "tick_failed": {"rung": "r1", "problem": "receipt incomplete (.factory/receipts/r1_RECEIPT.md missing sections: ## What PASS proves)", "verify": "pass", "transient": false, "head_before": "f1bc8b38148b", "head_after": "ee5fdfbd5ba8"}, "ts": "2026-10-18T01:12:08.513393+00:00"}
+{"actor": "operator", "rung_updated": {"rung": "r1", "status": "IN_PROGRESS"}, "ts": "2026-10-18T01:25:47.389060+00:00"}

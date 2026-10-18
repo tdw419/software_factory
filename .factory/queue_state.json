@@ -5,7 +5,7 @@
   "repo_head_at_lane_creation": "583c73fcf682",
   "rungs": {
     "r1": {
-      "status": "LANDED",
+      "status": "IN_PROGRESS",
       "title": "Single-pass decision_log.un_abortedgos",
       "ticket": ".factory/tickets/r1_decision_log_single_pass.md",
       "receipt": ".factory/receipts/r1_RECEIPT.md",
