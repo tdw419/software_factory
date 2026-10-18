@@ -30,7 +30,8 @@
     "watch_rules": [
       "WAKE DISCIPLINE",
       "RECURSION GUARD"
-    ]
+    ],
+    "heartbeat_stale_after_min": 240
   },
   "kernel_paths": [
     "software_factory/gate.py",
