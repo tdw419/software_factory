@@ -17,6 +17,6 @@ untouched.
 
 ## Ladder
 
-- Rung r1 [OPEN]: Single-pass `decision_log.un_abortedgos` + corrupt-line resilience (`.factory/tickets/r1_decision_log_single_pass.md`)
+- Rung r1 [LANDED]: Single-pass `decision_log.un_abortedgos` + corrupt-line resilience (`.factory/tickets/r1_decision_log_single_pass.md`)
 - Rung r2 [DRAFT]: CLI `factory receipt validate <path>` subcommand + paired-fence check (`.factory/tickets/r2_receipt_validate_cli.md`)
 - Rung r3 [DRAFT]: `ROADMAP.md` supply-row auto-sync helper (`factory ladder sync`) (`.factory/tickets/r3_ladder_sync.md`)
