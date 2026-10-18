@@ -5,13 +5,13 @@
   "repo_head_at_lane_creation": "6d16f199bd53",
   "rungs": {
     "r1": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "Single-pass decision_log.un_abortedgos",
       "ticket": ".factory/tickets/r1_decision_log_single_pass.md",
       "receipt": ".factory/receipts/r1_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-18T00:37:49.820901+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-18T01:04:58.382976+00:00",
       "landed_at": null,
       "commit": null
     },
