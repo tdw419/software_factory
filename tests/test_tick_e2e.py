@@ -23,6 +23,7 @@ FAKE_BUILDER = textwrap.dedent("""\
         qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
         (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
             "# RECEIPT\\n\\n## What PASS proves\\nfake\\n"
+            "## Commands and outputs\\n```bash\\n$ true\\n# ok\\n```\\n"
             "## What this does NOT prove\\n- nothing real happened\\n")
         g("add", ".factory/queue_state.json",
           f".factory/receipts/{rid}_RECEIPT.md")
@@ -52,6 +53,7 @@ FAKE_BUILDER = textwrap.dedent("""\
         qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
         (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
             "# RECEIPT\\n\\n## What PASS proves\\nfake\\n"
+            "## Commands and outputs\\n```bash\\n$ true\\n# ok\\n```\\n"
             "## What this does NOT prove\\n- nothing real happened\\n")
         g("add", ".factory/queue_state.json",
           f".factory/receipts/{rid}_RECEIPT.md")
@@ -63,6 +65,7 @@ FAKE_BUILDER = textwrap.dedent("""\
         qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
         (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
             "# RECEIPT\\n\\n## What PASS proves\\nkernel\\n"
+            "## Commands and outputs\\n```bash\\n$ true\\n# ok\\n```\\n"
             "## What this does NOT prove\\n- limits\\n")
         g("add", "app.py", ".factory/queue_state.json",
           f".factory/receipts/{rid}_RECEIPT.md")
