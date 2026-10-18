@@ -1,88 +1,88 @@
 {
- "lane": "sf-next",
- "charter": "ROADMAP.md",
- "created": "2026-10-18T00:37:04.880453+00:00",
- "repo_head_at_lane_creation": "583c73fcf682",
- "rungs": {
-  "r1": {
-   "status": "LANDED",
-   "title": "Single-pass decision_log.un_abortedgos",
-   "ticket": ".factory/tickets/r1_decision_log_single_pass.md",
-   "receipt": ".factory/receipts/r1_RECEIPT.md",
-   "claimed_by": "hermes-cli",
-   "opened": "2026-10-18T00:37:49.820901+00:00",
-   "claimed_at": "2026-10-18T01:04:58.382976+00:00",
-   "landed_at": "2026-10-18T01:28:57.421964+00:00",
-   "commit": "e1d2701"
+  "lane": "sf-next",
+  "charter": "ROADMAP.md",
+  "created": "2026-10-18T00:37:04.880453+00:00",
+  "repo_head_at_lane_creation": "583c73fcf682",
+  "rungs": {
+    "r1": {
+      "status": "LANDED",
+      "title": "Single-pass decision_log.un_abortedgos",
+      "ticket": ".factory/tickets/r1_decision_log_single_pass.md",
+      "receipt": ".factory/receipts/r1_RECEIPT.md",
+      "claimed_by": "hermes-cli",
+      "opened": "2026-10-18T00:37:49.820901+00:00",
+      "claimed_at": "2026-10-18T01:04:58.382976+00:00",
+      "landed_at": "2026-10-18T01:28:57.421964+00:00",
+      "commit": "e1d2701"
+    },
+    "r2": {
+      "status": "LANDED",
+      "title": "CLI receipt validate subcommand + paired-fence check",
+      "ticket": ".factory/tickets/r2_receipt_validate_cli.md",
+      "receipt": ".factory/receipts/r2_RECEIPT.md",
+      "claimed_by": "hermes-cli",
+      "opened": "2026-10-18T00:37:49.883771+00:00",
+      "claimed_at": "2026-10-18T01:41:42.739173+00:00",
+      "landed_at": "2026-10-18T01:50:51.203387+00:00",
+      "commit": "616e893"
+    },
+    "r3": {
+      "status": "LANDED",
+      "title": "ROADMAP.md supply-row status check in observer",
+      "ticket": ".factory/tickets/r3_ladder_sync.md",
+      "receipt": ".factory/receipts/r3_RECEIPT.md",
+      "claimed_by": "hermes-cli",
+      "opened": "2026-10-18T00:37:49.916391+00:00",
+      "claimed_at": "2026-10-18T05:07:18.610488+00:00",
+      "landed_at": "2026-10-18T05:19:52.365678+00:00",
+      "commit": "c5b1c19"
+    },
+    "r4": {
+      "status": "OPEN",
+      "title": "decision_log compaction guard",
+      "ticket": ".factory/tickets/r4_log_compaction.md",
+      "receipt": null,
+      "claimed_by": null,
+      "opened": "2026-10-18T05:48:33.331254+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
+    },
+    "r5": {
+      "status": "DRAFT",
+      "title": "tick heartbeat staleness threshold",
+      "ticket": ".factory/tickets/r5_heartbeat_stale.md",
+      "receipt": null,
+      "claimed_by": null,
+      "opened": "2026-10-18T05:48:33.331254+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
+    },
+    "r6": {
+      "status": "DRAFT",
+      "title": "allowlist glob patterns",
+      "ticket": ".factory/tickets/r6_allowlist_globs.md",
+      "receipt": null,
+      "claimed_by": null,
+      "opened": "2026-10-18T05:48:33.331254+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
+    }
   },
-  "r2": {
-   "status": "LANDED",
-   "title": "CLI receipt validate subcommand + paired-fence check",
-   "ticket": ".factory/tickets/r2_receipt_validate_cli.md",
-   "receipt": ".factory/receipts/r2_RECEIPT.md",
-   "claimed_by": "hermes-cli",
-   "opened": "2026-10-18T00:37:49.883771+00:00",
-   "claimed_at": "2026-10-18T01:41:42.739173+00:00",
-   "landed_at": "2026-10-18T01:50:51.203387+00:00",
-   "commit": "616e893"
-  },
-  "r3": {
-   "status": "LANDED",
-   "title": "ROADMAP.md supply-row status check in observer",
-   "ticket": ".factory/tickets/r3_ladder_sync.md",
-   "receipt": ".factory/receipts/r3_RECEIPT.md",
-   "claimed_by": "hermes-cli",
-   "opened": "2026-10-18T00:37:49.916391+00:00",
-   "claimed_at": "2026-10-18T05:07:18.610488+00:00",
-   "landed_at": "2026-10-18T05:19:52.365678+00:00",
-   "commit": "c5b1c19"
-  },
-  "r4": {
-   "status": "DRAFT",
-   "title": "decision_log compaction guard",
-   "ticket": ".factory/tickets/r4_log_compaction.md",
-   "receipt": null,
-   "claimed_by": null,
-   "opened": "2026-10-18T05:48:33.331254+00:00",
-   "claimed_at": null,
-   "landed_at": null,
-   "commit": null
-  },
-  "r5": {
-   "status": "DRAFT",
-   "title": "tick heartbeat staleness threshold",
-   "ticket": ".factory/tickets/r5_heartbeat_stale.md",
-   "receipt": null,
-   "claimed_by": null,
-   "opened": "2026-10-18T05:48:33.331254+00:00",
-   "claimed_at": null,
-   "landed_at": null,
-   "commit": null
-  },
-  "r6": {
-   "status": "DRAFT",
-   "title": "allowlist glob patterns",
-   "ticket": ".factory/tickets/r6_allowlist_globs.md",
-   "receipt": null,
-   "claimed_by": null,
-   "opened": "2026-10-18T05:48:33.331254+00:00",
-   "claimed_at": null,
-   "landed_at": null,
-   "commit": null
-  }
- },
- "infra_notes": [],
- "rules": [
-  "one ticket at a time; claim by setting claimed_by + updating queue_state.json in the same commit as the work",
-  "RED-first gates: the negative leg must be shown RED before the fix is trusted",
-  "receipt per ticket; the receipt states what PASS does NOT prove",
-  "dependency pins frozen unless a ticket explicitly upgrades them with a receipt",
-  "never absorb pre-existing failures into a ticket's gate; count and name them once, then exclude explicitly",
-  "WAKE DISCIPLINE: every tick ENDS with a commit, even a decisions-only one (append an infra_notes line if nothing else landed) — a tick that commits nothing leaves the digest unchanged, the next tick is silently suppressed, and the lane dies at its first idle tick",
-  "PACKAGE INSTALLS (operator pre-approval): on a measured missing-dependency wall, record an ASK entry (exact packages + measured reason) in the same commit and proceed — additive installs only, nothing touching repo/git state; non-additive or uncertain needs: record the ask and end the tick",
-  "COMMIT PER SUB-STEP: the iteration cap can arrive before 'the end' — never hold finished sub-steps in the tree; commit each as it completes (work + queue/log updates together) so any cap or stall loses at most the current sub-step",
-  "GATE TIMEOUTS: every gate command runs under an explicit timeout below the scheduler's kill threshold; a suite that genuinely needs longer runs backgrounded with a polled log file",
-  "COMMIT SCOPE: enumerate exact paths per commit; never 'git add -A' or bare 'git add .'; out-of-scope dirty files only in a separate commit naming provenance",
-  "RECURSION GUARD (kernel freeze): never autonomously modify gate.py GO-spend accounting or tick.py lock/park/verify-gate logic; any change to those surfaces requires an operator-fired GO gate (kind='kernel_edit')"
- ]
+  "infra_notes": [],
+  "rules": [
+    "one ticket at a time; claim by setting claimed_by + updating queue_state.json in the same commit as the work",
+    "RED-first gates: the negative leg must be shown RED before the fix is trusted",
+    "receipt per ticket; the receipt states what PASS does NOT prove",
+    "dependency pins frozen unless a ticket explicitly upgrades them with a receipt",
+    "never absorb pre-existing failures into a ticket's gate; count and name them once, then exclude explicitly",
+    "WAKE DISCIPLINE: every tick ENDS with a commit, even a decisions-only one (append an infra_notes line if nothing else landed) — a tick that commits nothing leaves the digest unchanged, the next tick is silently suppressed, and the lane dies at its first idle tick",
+    "PACKAGE INSTALLS (operator pre-approval): on a measured missing-dependency wall, record an ASK entry (exact packages + measured reason) in the same commit and proceed — additive installs only, nothing touching repo/git state; non-additive or uncertain needs: record the ask and end the tick",
+    "COMMIT PER SUB-STEP: the iteration cap can arrive before 'the end' — never hold finished sub-steps in the tree; commit each as it completes (work + queue/log updates together) so any cap or stall loses at most the current sub-step",
+    "GATE TIMEOUTS: every gate command runs under an explicit timeout below the scheduler's kill threshold; a suite that genuinely needs longer runs backgrounded with a polled log file",
+    "COMMIT SCOPE: enumerate exact paths per commit; never 'git add -A' or bare 'git add .'; out-of-scope dirty files only in a separate commit naming provenance",
+    "RECURSION GUARD (kernel freeze): never autonomously modify gate.py GO-spend accounting or tick.py lock/park/verify-gate logic; any change to those surfaces requires an operator-fired GO gate (kind='kernel_edit')"
+  ]
 }
