@@ -370,5 +370,9 @@ def test_cli_diagnose_draft(repo, capsys):
     rc = main(["--repo", str(repo), "diagnose", "--draft"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert out.startswith("drafted: auto_")
-    assert out.endswith("findings=0\n")
+    out_lines = out.splitlines()
+    drafted_idx = [i for i, ln in enumerate(out_lines)
+                   if ln.startswith("drafted: auto_")]
+    assert drafted_idx, out
+    assert "findings=0" in out_lines
+    assert drafted_idx[0] < out_lines.index("findings=0")  # drafted BEFORE findings

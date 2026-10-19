@@ -90,7 +90,7 @@ def next_actionable(q: dict):
 
 
 def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
-                claimed_by=None, title=None):
+                claimed_by=None, title=None, covers=None):
     """Update lifecycle fields of an existing rung. Returns (rung, changes).
 
     Validated here so the operator CLI can never write a queue the tick or
@@ -131,16 +131,47 @@ def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
             raise QueueError("title must be non-empty")
         r["title"] = title
         changes["title"] = title
+    if covers is not None:
+        covers = list(covers)
+        if not all(isinstance(c, str) and c.strip() for c in covers):
+            raise QueueError("covers must be a list of non-empty signature strings")
+        if covers != list(r.get("covers") or []):
+            r["covers"] = covers
+            changes["covers"] = covers
     return r, changes
 
 
+#: Sections a ticket file must carry; validate_ticket() enforces the s1
+#: dedup contract's structural floor plus the s2 drafted-ticket sections.
+REQUIRED_TICKET_SECTIONS = (
+    "## Goal",
+    "## Stages",
+    "## Constraints",
+    "## What this does NOT prove",
+)
+
+
+def validate_ticket(path) -> list:
+    """Return the missing required sections of a ticket file ([] = valid),
+    or ['<missing>'] when the file does not exist / is unreadable."""
+    path = Path(path)
+    if not path.is_file():
+        return ["<missing>"]
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ["<unreadable>"]
+    return [sec for sec in REQUIRED_TICKET_SECTIONS if sec not in text]
+
+
 def register_rung(q: dict, rid: str, title: str, ticket: str,
-                  receipt: str = "", status: str = "OPEN") -> None:
+                  receipt: str = "", status: str = "OPEN",
+                  covers=None, origin=None) -> None:
     if rid in q["rungs"]:
         raise QueueError(f"rung '{rid}' already exists")
     if status not in STATUSES:
         raise QueueError(f"bad status {status!r}")
-    q["rungs"][rid] = {
+    entry = {
         "status": status,
         "title": title,
         "ticket": ticket,
@@ -151,3 +182,8 @@ def register_rung(q: dict, rid: str, title: str, ticket: str,
         "landed_at": None,
         "commit": None,
     }
+    if covers is not None:
+        entry["covers"] = list(covers)
+    if origin is not None:
+        entry["origin"] = origin
+    q["rungs"][rid] = entry
