@@ -235,3 +235,140 @@ def test_cli_diagnose(repo, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert out.endswith("findings=0\n")
+
+
+# ---------- s2: builder_timeout bucket, CLI --covers, diagnose --draft ----------
+
+def test_builder_timeout_classifies_builder_timeout():
+    # s1 gap: "builder TIMEOUT after <N>s" fell through to the first-word
+    # fallback and classified as failure_class:builder
+    assert diagnose.classify_problem("builder TIMEOUT after 1500s") == "builder_timeout"
+    assert diagnose.failure_classes("builder TIMEOUT after 1500s") == ["builder_timeout"]
+    # the pre-existing buckets keep their classifications
+    assert diagnose.classify_problem("builder exit 1") == "builder_exit"
+    assert diagnose.classify_problem("verify gate TIMEOUT (rule 8)") == "verify_timeout"
+
+
+def test_ticket_add_and_set_covers(repo):
+    init_lane(repo)
+    t = repo / ".factory" / "tickets" / "t1.md"
+    t.write_text("# T1\n\n## Goal\nx\n\n## Stages\ny\n\n## Constraints\nz\n")
+    rc = main(["--repo", str(repo), "ticket", "add", "--id", "t1",
+               "--title", "fix receipts", "--ticket", ".factory/tickets/t1.md",
+               "--covers", "failure_class:receipt,violation:kernel_edit"])
+    assert rc == 0
+    q = queue_state.load(repo)
+    assert q["rungs"]["t1"]["covers"] == [
+        "failure_class:receipt", "violation:kernel_edit"]
+    # set: comma-separated, empty items stripped
+    rc = main(["--repo", str(repo), "ticket", "set", "t1",
+               "--covers", "failure_class:receipt,,stall"])
+    assert rc == 0
+    q = queue_state.load(repo)
+    assert q["rungs"]["t1"]["covers"] == ["failure_class:receipt", "stall"]
+
+
+def test_diagnose_draft_creates_self_draft_rung(repo):
+    init_lane(repo)
+    cfg_path = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    cfg["digest"]["ladder"] = {"path": "ROADMAP.md", "line_prefix": "- Rung"}
+    cfg_path.write_text(json.dumps(cfg), encoding="utf-8")
+    (repo / "ROADMAP.md").write_text("# Roadmap\n\n- Rung x [LANDED]: prior\n",
+                                     encoding="utf-8")
+    ts_a = _append(repo, **_tick_failed(problem="builder TIMEOUT after 1500s",
+                                        transient=True))
+    ts_b = _append(repo, **_tick_failed(problem="builder TIMEOUT after 1500s",
+                                        transient=True))
+    lines = diagnose.run(repo, cfg={"max_active_drafts": 2}, draft=True)
+
+    q = queue_state.load(repo)
+    self_rungs = {rid: r for rid, r in q["rungs"].items()
+                  if r.get("origin") == "self"}
+    assert len(self_rungs) == 1
+    rid, r = next(iter(self_rungs.items()))
+    assert r["status"] == "DRAFT"
+    assert r["covers"] == ["failure_class:builder_timeout"]
+    ticket_rel = r["ticket"]
+    text = (repo / ticket_rel).read_text(encoding="utf-8")
+    for sec in ("## Goal", "## Stages", "## Constraints",
+                "## What this does NOT prove"):
+        assert sec in text, f"missing {sec}"
+    assert "kernel_paths" in text  # explicit no-kernel-edit constraint
+    assert "failure_class:builder_timeout" in text  # cites the signature
+    assert "count=2" in text or "count: 2" in text  # cites the count
+    assert ts_a in text and ts_b in text  # cites the exact evidence ts
+    assert queue_state.validate_ticket(repo / ticket_rel) == []
+
+    # ladder sync so observer keeps reporting ladder_drift=none
+    ladder = (repo / "ROADMAP.md").read_text(encoding="utf-8")
+    assert f"- Rung {rid} [DRAFT]:" in ladder
+    assert ticket_rel in ladder
+
+    # provenance in decision_log
+    dd = [x["diagnose_drafted"] for x in decision_log.read_all(repo)
+          if "diagnose_drafted" in x]
+    assert len(dd) == 1
+    assert dd[0]["rung"] == rid
+    assert dd[0]["signature"] == "failure_class:builder_timeout"
+    assert dd[0]["count"] == 2
+    assert dd[0]["evidence"] == [ts_a, ts_b]
+
+    # stdout: drafted line BEFORE findings=<n>; findings recomputed to 0
+    assert lines[0] == (f"drafted: {rid} covers=failure_class:builder_timeout "
+                        f"ticket={ticket_rel}")
+    assert lines[-1] == "findings=0"
+
+    # idempotence: immediate re-run (bare or --draft) sees the signature covered
+    assert diagnose.run(repo) == ["findings=0"]
+    assert diagnose.run(repo, draft=True) == ["findings=0"]
+    q2 = queue_state.load(repo)
+    assert sum(1 for x in q2["rungs"].values() if x.get("origin") == "self") == 1
+
+
+def test_diagnose_draft_respects_active_cap(repo):
+    init_lane(repo)
+    for i in range(2):  # default max_active_drafts=2, cfg absent
+        q = queue_state.load(repo)
+        queue_state.register_rung(q, f"pre{i}", "prior self draft",
+                                  ".factory/tickets/pre.md", status="DRAFT")
+        q["rungs"][f"pre{i}"]["origin"] = "self"
+        queue_state.save(repo, q)
+    _append(repo, **_tick_failed(problem="receipt incomplete (x)"))
+    _append(repo, **_tick_failed(problem="receipt incomplete (x)"))
+    lines = diagnose.run(repo, draft=True)
+    assert lines[0] == "draft_skipped=cap_reached"
+    assert lines[-1] == "findings=1"  # nothing drafted -> finding still stands
+    q = queue_state.load(repo)
+    assert not [rid for rid in q["rungs"] if rid.startswith("auto_")]
+
+
+def test_bare_diagnose_performs_zero_writes(repo):
+    init_lane(repo)
+    _append(repo, **_tick_failed(problem="builder TIMEOUT after 900s",
+                                 transient=True))
+    _append(repo, **_tick_failed(problem="builder TIMEOUT after 900s",
+                                 transient=True))
+    before = {str(p.relative_to(repo)): p.read_bytes()
+              for p in sorted((repo / ".factory").rglob("*")) if p.is_file()}
+    before["ROADMAP.md"] = b""
+    lines = diagnose.run(repo)
+    assert lines[-1] == "findings=1"
+    after = {str(p.relative_to(repo)): p.read_bytes()
+             for p in sorted((repo / ".factory").rglob("*")) if p.is_file()}
+    after["ROADMAP.md"] = b""
+    assert before == after
+    assert not (repo / "ROADMAP.md").exists()
+
+
+def test_cli_diagnose_draft(repo, capsys):
+    init_lane(repo)
+    _append(repo, **_tick_failed(problem="builder TIMEOUT after 1500s",
+                                 transient=True))
+    _append(repo, **_tick_failed(problem="builder TIMEOUT after 1500s",
+                                 transient=True))
+    rc = main(["--repo", str(repo), "diagnose", "--draft"])
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.startswith("drafted: auto_")
+    assert out.endswith("findings=0\n")
