@@ -29,7 +29,7 @@ untouched.
 
 ### v0.5.0 — seeded by operator 2026-10-18 (DRAFT; open via `factory ticket set <id> --status OPEN`)
 
-- Rung r7 [DRAFT]: observer heartbeat counts every persisted tick — freshness = max(runs/ mtime, `state.json:last_tick_ts`), observer-only (tick.py is a kernel path) (`.factory/tickets/r7_suppressed_tick_persistence.md`)
+- Rung r7 [LANDED]: observer heartbeat counts every persisted tick — freshness = max(runs/ mtime, `state.json:last_tick_ts`), observer-only (tick.py is a kernel path) (`.factory/tickets/r7_suppressed_tick_persistence.md`)
 
 ### v0.7.0 — seeded by operator 2026-10-19 (DRAFT; open via `factory ticket set <id> --status OPEN`)
 

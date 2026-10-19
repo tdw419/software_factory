@@ -71,15 +71,15 @@
       "commit": "371f1d2"
     },
     "r7": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "heartbeat counts every persisted tick (observer-only)",
       "ticket": ".factory/tickets/r7_suppressed_tick_persistence.md",
       "receipt": ".factory/receipts/r7_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-19T00:07:58.620033+00:00",
       "claimed_at": "2026-10-19T13:30:47.019498+00:00",
-      "landed_at": null,
-      "commit": null
+      "landed_at": "2026-10-19T13:38:37.903290+00:00",
+      "commit": "975dbf8"
     },
     "s1": {
       "status": "DRAFT",
