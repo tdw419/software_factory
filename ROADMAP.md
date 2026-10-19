@@ -33,4 +33,4 @@ untouched.
 
 ### v0.7.0 — seeded by operator 2026-10-19 (DRAFT; open via `factory ticket set <id> --status OPEN`)
 
-- Rung s1 [DRAFT]: `factory diagnose` read-only — mechanical failure-class counter over live + archived decision log (ts-deduped), signature-key findings, queue-dedup with recurrence re-fire (`.factory/tickets/s1_diagnose.md`)
+- Rung s1 [LANDED]: `factory diagnose` read-only — mechanical failure-class counter over live + archived decision log (ts-deduped), signature-key findings, queue-dedup with recurrence re-fire (`.factory/tickets/s1_diagnose.md`)

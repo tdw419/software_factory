@@ -33,3 +33,4 @@
 {"kind": "kernel_baseline_reset", "by": "operator", "authorization": "Jericho GO 'reset' 2026-10-19 (chat, this session)", "field": "queue_state.repo_head_at_lane_creation", "from_head": "583c73fcf682", "to_head": "64b3e563117f9ed293301fc66ad5e93b4f93e1ba", "reason": "merge b3cb44e carried audited v0.6.0 tick.py (r8/r9 co-tenant guard content, 94/94 on main, 99/99 here); VIOLATION dispositioned as legitimate operator supply, not a builder kernel edit", "ts": "2026-10-19T14:44:49.022787+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "s1", "status": "OPEN"}, "ts": "2026-10-19T14:47:51.732464+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "s1", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-19T14:58:00.791075+00:00"}
+{"actor": "operator", "rung_updated": {"rung": "s1", "status": "LANDED", "commit": "744aee2"}, "ts": "2026-10-19T15:10:02.435451+00:00"}
