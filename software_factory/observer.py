@@ -153,21 +153,42 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None,
                               / decision_log.ARCHIVE_NAME).is_file() else "no"))
 
     runs = queue_state.factory_dir(repo) / "runs"
-    try:
-        mt = max(os.path.getmtime(os.path.join(runs, f)) for f in os.listdir(runs))
-        if heartbeat_stale_after_min is not None:
-            # config engaged: categorical OK|STALE against now-minus-threshold
-            # (STALE is a state change -> the cron observer leg wakes the agent)
-            stale = time.time() - mt > heartbeat_stale_after_min * 60
-            lines.append("tick_heartbeat=" + ("STALE" if stale else "OK"))
-        else:
-            # config absent: legacy vocabulary, byte-identical behavior
-            lines.append("tick_heartbeat="
-                         + ("STALL" if time.time() - mt > stale_secs else "OK"))
-    except (OSError, ValueError):
-        if heartbeat_stale_after_min is not None:
+    if heartbeat_stale_after_min is not None:
+        # config engaged: categorical OK|STALE against now-minus-threshold
+        # (STALE is a state change -> the cron observer leg wakes the agent).
+        # STALE means "no successful tick execution in N minutes": every
+        # finishing tick persists state.json:last_tick_ts (suppressed,
+        # degraded, WAKE no_actionable — tick.finish() -> save_state(); only
+        # PARKED and dry_run skip it), so freshness is the NEWEST of both
+        # persisted sources. A missing/unparseable state.json simply drops
+        # out of the max (runs mtime alone, the pre-r7 behavior).
+        sources = []
+        try:
+            sources.append(max(os.path.getmtime(os.path.join(runs, f))
+                               for f in os.listdir(runs)))
+        except (OSError, ValueError):
+            pass
+        try:
+            s = json.loads((queue_state.factory_dir(repo) / "state.json")
+                           .read_text(encoding="utf-8"))
+            sources.append(
+                datetime.fromisoformat(s["last_tick_ts"]).timestamp())
+        except (OSError, ValueError, TypeError, KeyError):
+            pass
+        if not sources:
             lines.append("tick_heartbeat=missing")
         else:
+            stale = time.time() - max(sources) > heartbeat_stale_after_min * 60
+            lines.append("tick_heartbeat=" + ("STALE" if stale else "OK"))
+    else:
+        # config absent: legacy vocabulary, byte-identical behavior (runs
+        # mtimes only — state.json is never consulted on this path)
+        try:
+            mt = max(os.path.getmtime(os.path.join(runs, f))
+                     for f in os.listdir(runs))
+            lines.append("tick_heartbeat="
+                         + ("STALL" if time.time() - mt > stale_secs else "OK"))
+        except (OSError, ValueError):
             lines.append("tick_heartbeat=NO_RUNS")
 
     return lines
