@@ -93,7 +93,9 @@
       "commit": null
     }
   },
-  "infra_notes": [],
+  "infra_notes": [
+    "2026-10-19 r7 tick: PRE-EXISTING kernel_guard=VIOLATION(software_factory/tick.py) on next since operator merge b3cb44e (main's f9b1442/e54deae kernel commits entered this lane's history after lane-creation head 583c73f, no kernel_edit GO on this lane); verified present at da52972 via temp worktree, NOT caused by r7 (r7 touched observer.py/tests/.factory only, rule 4 exclusion). Needs operator call: reset guard base at merge, or fire kernel_edit GO for the merge."
+  ],
   "rules": [
     "one ticket at a time; claim by setting claimed_by + updating queue_state.json in the same commit as the work",
     "RED-first gates: the negative leg must be shown RED before the fix is trusted",
