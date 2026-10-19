@@ -282,6 +282,69 @@ def test_heartbeat_no_runs_legacy_vocabulary_unchanged(repo):
     assert d["tick_heartbeat"] == "NO_RUNS"
 
 
+def _set_state_ts(repo, iso):
+    """Persist a state.json the way tick.save_state() does (last_tick_ts)."""
+    sp = repo / ".factory" / "state.json"
+    sp.write_text(json.dumps({"last_tick_ts": iso}) + "\n")
+
+
+def _mins_ago_iso(secs):
+    import datetime
+    now = datetime.datetime.now(datetime.timezone.utc)
+    return (now - datetime.timedelta(seconds=secs)).isoformat()
+
+
+def test_heartbeat_fresh_state_ts_overrides_stale_runs(repo):
+    # r7: EVERY finishing tick persists state.json:last_tick_ts (suppressed,
+    # degraded, WAKE no_actionable — finish() -> save_state()); only PARKED
+    # and dry_run skip it. When a WAKE no_actionable fires, state is fresh
+    # but no runs/ marker is written — freshness must be the MAX of both
+    # sources, so this lane is OK, not STALE.
+    healthy_lane(repo)
+    _append_run(repo, age_secs=3600)  # runs marker 1h old
+    _set_state_ts(repo, _mins_ago_iso(60))  # tick finished 1 min ago
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "OK"
+
+
+def test_heartbeat_stale_when_both_sources_old(repo):
+    healthy_lane(repo)
+    _append_run(repo, age_secs=3600)
+    _set_state_ts(repo, _mins_ago_iso(3600))
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "STALE"
+
+
+def test_heartbeat_fresh_state_ts_no_runs_dir(repo):
+    # lane whose ticks finish but never produced a runs marker at all
+    healthy_lane(repo)
+    _set_state_ts(repo, _mins_ago_iso(60))
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "OK"
+
+
+def test_heartbeat_missing_state_file_behavior_unchanged(repo):
+    # no state.json on disk -> runs mtime is the only source (old behavior)
+    healthy_lane(repo)
+    _append_run(repo, age_secs=3600)
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "STALE"
+
+
+def test_heartbeat_unparseable_state_behavior_unchanged(repo):
+    # garbage state.json -> treated as absent, runs mtime only (old behavior)
+    healthy_lane(repo)
+    _append_run(repo, age_secs=3600)
+    _set_state_ts(repo, "not a timestamp")
+    d = dict(ln.split("=", 1) for ln in
+             observer.observe(repo, heartbeat_stale_after_min=5))
+    assert d["tick_heartbeat"] == "STALE"
+
+
 def test_observer_surfaces_armed_gate(repo):
     from software_factory import gate
     healthy_lane(repo)
