@@ -82,13 +82,13 @@
       "commit": "975dbf8"
     },
     "s1": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "factory diagnose (read-only self-diagnosis)",
       "ticket": ".factory/tickets/s1_diagnose.md",
       "receipt": ".factory/receipts/s1_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-19T13:26:55.017268+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-19T14:58:00.789534+00:00",
       "landed_at": null,
       "commit": null
     }
