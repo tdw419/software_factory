@@ -82,7 +82,7 @@
       "commit": "975dbf8"
     },
     "s1": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "factory diagnose (read-only self-diagnosis)",
       "ticket": ".factory/tickets/s1_diagnose.md",
       "receipt": ".factory/receipts/s1_RECEIPT.md",
