@@ -9,7 +9,7 @@ if __package__ in (None, ""):  # direct-file run: python3 .../cli.py --help
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "software_factory"
 
-from . import __version__, decision_log, digest, gate, human_gate, observer, queue_state, tick
+from . import __version__, decision_log, diagnose, digest, gate, human_gate, observer, queue_state, tick
 from .common import (atomic_write_text, dump_json, git, now_iso,
                      validate_receipt)
 from .templates import (DEFAULT_CONFIG, OBSERVER_PROMPT_TEMPLATE, PROMPT_TEMPLATE,
@@ -183,6 +183,13 @@ def cmd_log_compact(args):
     return code
 
 
+def cmd_diagnose(args):
+    repo = _repo(args)
+    cfg = _load_cfg_or_none(repo)
+    diagnose.run(repo, cfg=(cfg or {}).get("diagnose"))
+    return 0
+
+
 def json_dumps(obj):
     import json
     return json.dumps(obj, ensure_ascii=False)
@@ -321,6 +328,10 @@ def build_parser():
     sp2.add_argument("--keep", type=int, default=decision_log.DEFAULT_KEEP,
                      help="entries to keep live (default: %(default)s)")
     sp2.set_defaults(fn=cmd_log_compact)
+
+    sp = sub.add_parser("diagnose",
+                        help="read-only self-diagnosis counter over the decision log")
+    sp.set_defaults(fn=cmd_diagnose)
 
     sp = sub.add_parser("gate", help="GO-gated disruptive operations")
     gsub = sp.add_subparsers(dest="sub", required=True)

@@ -57,15 +57,16 @@ def test_failure_class_patterns_are_deterministic(repo):
                     "WAKE DISCIPLINE: builder returned 0 but committed nothing",
                     "QUEUE DISCIPLINE: rung left IN_PROGRESS with no claimed_by"):
         _append(repo, **_tick_failed(problem=problem))
-    lines = _lines(repo)
+    lines = _lines(repo, cfg={"thresholds": {"failure_class": 1}})
     sigs = {ln.split(" ", 2)[1].rsplit(" ", 2)[0]
-            for ln in _finding_lines(lines)}
+            for ln in _finding_lines(lines) if ln.startswith("finding: failure_class:")}
     assert sigs == {
         "failure_class:recursion_guard", "failure_class:builder_exit",
         "failure_class:verify_timeout", "failure_class:wake_discipline",
         "failure_class:queue_discipline",
     }
-    assert lines[-1] == "findings=5"
+    # 5 failure classes + stall (5-trailing-failure streak >= default 3)
+    assert lines[-1] == "findings=6"
 
 
 def test_archive_evidence_survives_compaction(repo):
@@ -87,12 +88,10 @@ def test_duplicate_ts_counts_once(repo):
     ts = _append(repo, **_tick_failed(problem="receipt incomplete (x)"))
     raw = (repo / ".factory" / "decision_log.jsonl").read_text(
         encoding="utf-8").splitlines()[-1]
-    with open(repo / ".factory" / ".archive_seed", "w") as f:
-        f.write(raw + "\n")
     arch = repo / ".factory" / "decision_log.archive.jsonl"
     arch.write_text(raw + "\n", encoding="utf-8")
-    (repo / ".factory" / ".archive_seed").unlink()
-    lines = _lines(repo)
+    # threshold 1: if the duplicate were counted twice, count would be 2
+    lines = _lines(repo, cfg={"thresholds": {"failure_class": 1}})
     assert lines == [
         f"finding: failure_class:receipt count=1 evidence={ts}",
         "findings=1",
@@ -181,15 +180,21 @@ def test_stall_resets_on_successful_tick(repo):
                   "builder_exit": 0, "verify": "pass", "head_before": "aa",
                   "head_after": "bb", "receipt": ".factory/receipts/t1.md",
                   "rung_status": "LANDED"})
-    assert _lines(repo) == ["findings=0"]
+    lines = _lines(repo)
+    # the failure_class count survives the reset (history), the stall streak
+    # does not (a successful tick happened after the failures)
+    assert lines == [
+        "finding: failure_class:builder_exit count=3 evidence="
+        + lines[0].split("evidence=")[1],
+        "findings=1",
+    ]
+    assert not any(ln.startswith("finding: stall ") for ln in lines)
 
 
 def test_parked_finding_from_state(repo):
     init_lane(repo)
-    st = json.loads((repo / ".factory" / "state.json").read_text())
-    st["parked"] = True
-    st["consecutive_failures"] = 3
-    (repo / ".factory" / "state.json").write_text(json.dumps(st))
+    (repo / ".factory" / "state.json").write_text(json.dumps(
+        {"parked": True, "consecutive_failures": 3}))
     lines = _lines(repo)
     assert "finding: parked count=1 evidence=" in lines
     assert lines[-1] == "findings=1"
