@@ -82,7 +82,7 @@
       "commit": null
     },
     "s1": {
-      "status": "OPEN",
+      "status": "DRAFT",
       "title": "factory diagnose (read-only self-diagnosis)",
       "ticket": ".factory/tickets/s1_diagnose.md",
       "receipt": ".factory/receipts/s1_RECEIPT.md",
