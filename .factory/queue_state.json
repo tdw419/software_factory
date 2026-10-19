@@ -91,6 +91,17 @@
       "claimed_at": "2026-10-19T14:58:00.789534+00:00",
       "landed_at": "2026-10-19T15:10:02.433965+00:00",
       "commit": "744aee2"
+    },
+    "s2": {
+      "status": "OPEN",
+      "title": "factory diagnose --draft + builder_timeout bucket + CLI --covers",
+      "ticket": ".factory/tickets/s2_diagnose_draft.md",
+      "receipt": ".factory/receipts/s2_RECEIPT.md",
+      "claimed_by": null,
+      "opened": "2026-10-19T15:20:25.871398+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
     }
   },
   "infra_notes": [
