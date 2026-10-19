@@ -1,36 +1,46 @@
-# TICKET — r7: suppressed-tick heartbeat persistence
+# TICKET — r7: heartbeat counts every persisted tick (observer-only)
 
 ## Charter
-r5's `tick_heartbeat=OK|STALE|missing` reads `.factory/state.json`'s last-tick
-timestamp, but a SUPPRESSED tick (no-op fingerprint match) writes nothing —
-only a dispatched (WAKE) tick updates the timestamp today. That means
-`tick_heartbeat` actually measures "time since last builder dispatch," not
-"is the tick leg alive." A tick leg that silently dies (cron job removed,
-process crash, permission error before reaching the lock) is indistinguishable
-lane-side from a lane that's simply quiet because there's no work — both read
-whatever the last WAKE happened to write, forever.
+`observer.observe()` computes tick freshness from `.factory/runs/` mtimes
+only. But `state.json:last_tick_ts` is persisted by EVERY finishing tick
+(suppressed, degraded, WAKE no_actionable — `finish()` -> `save_state()`);
+only PARKED and dry_run skip it. The signals disagree exactly when a
+WAKE no_actionable fires (state written, no runs marker): the observer then
+reports a heartbeat older than reality. STALE must mean "no successful tick
+execution in N minutes", so freshness = max(latest runs/ mtime, parsed
+`state.json:last_tick_ts`).
 
-## Goal
-Every tick invocation — SUPPRESSED, WAKE, or FAIL — persists a `last_tick_ts`
-to `.factory/state.json` before returning, independent of whether work was
-dispatched. `observer.heartbeat_stale_after_min` (from r5) then measures
-tick-leg liveness, not dispatch recency: a tick leg that stops firing goes
-STALE within the threshold even if the lane has had no actionable work the
-whole time.
+Supersedes the original charter of this ticket (2026-10-18), whose premise
+was inverted: it claimed suppressed ticks write nothing and asked tick.py to
+start writing them. save_state already persists last_tick_ts on
+suppressed/degraded/no_actionable paths; the actual gap is observer-side.
 
 ## Constraints
-- Write `last_tick_ts` under the same `tick.lock` flock the tick already
-  holds — no new lock surface.
-- Byte-stability regression: a lane with `observer.heartbeat_stale_after_min`
-  unset must keep emitting exactly today's `tick_heartbeat=OK|missing`
-  vocabulary (this rung only changes what feeds the STALE threshold calc,
-  not the legacy no-threshold output).
+- observer.py ONLY. `software_factory/tick.py` is a kernel path
+  (kernel_paths is file-granular); do not touch it. No kernel_edit GO is
+  needed or wanted for this rung.
+- When `observer.heartbeat_stale_after_min` is ABSENT from config, observer
+  output must stay byte-identical (legacy OK/STALL/NO_RUNS vocabulary —
+  the r5 contract).
 - Do not conflate "last tick ran" with "last tick dispatched a builder" in
-  any user-facing observer line — if both are useful, they must be two
-  distinct, separately named fields, not an overload of one.
-- RED-first in the claim commit (rule 0); receipt with paired commands/
-  outputs; both required sections (`## What PASS proves`,
+  one overloaded field — if both are useful they stay separately named.
+- RED-first in the claim commit (rule 0); receipt with paired
+  commands/outputs; both required sections (`## What PASS proves`,
   `## What this does NOT prove`).
-- Non-kernel: this touches `tick.py`'s *state bookkeeping*, not its lock/
-  park/verify-gate logic — stay out of the paths the kernel guard watches,
-  or if truly unavoidable, flag it explicitly rather than silently crossing.
+
+## Stages
+- probe: read observe() heartbeat computation + the r5 test legs.
+- RED: with `heartbeat_stale_after_min` armed, a fresh `last_tick_ts` plus
+  stale runs/ mtimes must yield OK (fails today: reports STALE); a missing
+  or unparseable state.json must leave behavior unchanged; legacy-vocab
+  byte-stability legs keep passing.
+- GREEN: minimal change inside observe().
+- receipt: `.factory/receipts/r7_RECEIPT.md` with both required sections.
+
+## What this does NOT prove
+- Does not detect cron-layer silent no-ops (a scheduler leg completing "ok"
+  without executing its command) any faster than the STALE threshold fires —
+  that is wiring, not lane code (proven by the 2026-10-18 dead-air window,
+  16:30 -> 18:16 CDT, caught by STALL at 18:16).
+- PARKED and dry_run ticks still write nothing (kernel-guarded file).
+- Does not measure dispatch quality — a heartbeat is liveness, not health.

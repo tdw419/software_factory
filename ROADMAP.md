@@ -29,4 +29,8 @@ untouched.
 
 ### v0.5.0 — seeded by operator 2026-10-18 (DRAFT; open via `factory ticket set <id> --status OPEN`)
 
-- Rung r7 [DRAFT]: suppressed-tick heartbeat persistence — every tick writes `last_tick_ts` so `tick_heartbeat` measures tick-leg liveness, not dispatch recency (`.factory/tickets/r7_suppressed_tick_persistence.md`)
+- Rung r7 [DRAFT]: observer heartbeat counts every persisted tick — freshness = max(runs/ mtime, `state.json:last_tick_ts`), observer-only (tick.py is a kernel path) (`.factory/tickets/r7_suppressed_tick_persistence.md`)
+
+### v0.7.0 — seeded by operator 2026-10-19 (DRAFT; open via `factory ticket set <id> --status OPEN`)
+
+- Rung s1 [DRAFT]: `factory diagnose` read-only — mechanical failure-class counter over live + archived decision log (ts-deduped), signature-key findings, queue-dedup with recurrence re-fire (`.factory/tickets/s1_diagnose.md`)

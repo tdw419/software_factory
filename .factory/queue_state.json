@@ -71,12 +71,23 @@
       "commit": "371f1d2"
     },
     "r7": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "suppressed-tick heartbeat persistence",
       "ticket": ".factory/tickets/r7_suppressed_tick_persistence.md",
       "receipt": ".factory/receipts/r7_RECEIPT.md",
       "claimed_by": null,
       "opened": "2026-10-19T00:07:58.620033+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
+    },
+    "s1": {
+      "status": "OPEN",
+      "title": "factory diagnose (read-only self-diagnosis)",
+      "ticket": ".factory/tickets/s1_diagnose.md",
+      "receipt": ".factory/receipts/s1_RECEIPT.md",
+      "claimed_by": null,
+      "opened": "2026-10-19T13:26:55.017268+00:00",
       "claimed_at": null,
       "landed_at": null,
       "commit": null
