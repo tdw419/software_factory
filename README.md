@@ -49,6 +49,23 @@ Each tick hashes a stable fingerprint: HEAD + queue_state + tickets + tree
 dirt (minus the churn allowlist) + ladder status lines. Unchanged
 fingerprint -> the tick is a cheap no-op. Changed -> dispatch.
 
+### Scoped lanes (watch_paths, r8)
+
+The HEAD part is the last commit TOUCHING the lane's `digest.watch_paths`
+(lane-relative pathspecs; default `["."]` = the lane's own subtree — for a
+repo-root lane this is exactly the old repo-global HEAD, byte-identical).
+A lane nested inside a bigger repo — or sharing one with another lane's
+bookkeeping (e.g. an incumbent `.builder_queue/`) — scopes HEAD so foreign
+commits don't wake it:
+
+```json
+{ "digest": { "watch_paths": ["systems", "docs"] } }
+```
+
+No commit in history touches the watch paths -> the HEAD part is the
+stable sentinel `NONE` (the scope's first commit then wakes the lane).
+Git failure -> DEGRADED, never dispatches.
+
 Failure semantics, learned the hard way:
 
 - builder fails or verify RED -> the fingerprint is NOT advanced, so the
