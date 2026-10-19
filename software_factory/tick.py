@@ -20,8 +20,9 @@ import subprocess
 from pathlib import Path
 
 from . import adapters, decision_log, digest, queue_state
-from .common import (atomic_write_text, dump_json, git, load_json, now_iso,
-                     sh, touched_kernel_paths, validate_receipt)
+from .common import (atomic_write_text, dump_json, git, in_watch_scope,
+                     load_json, now_iso, resolve_watch_paths, sh,
+                     touched_kernel_paths, validate_receipt)
 from .templates import DEFAULT_CONFIG, PROMPT_TEMPLATE
 
 STATE_NAME = "state.json"
@@ -169,6 +170,15 @@ def _run_tick_locked(repo, cfg, fdir, force=False, dry_run=False,
         return finish(EXIT_OK, f"DRY-RUN: would dispatch rung {rid}; prompt at {prompt_path}")
 
     head_before = _head(repo)
+    # Co-tenant lanes: snapshot kernel-path dirt BEFORE dispatch so the
+    # post-check attributes the working-tree DELTA to this tick, not the
+    # ambient dirt the incumbent's bookkeeping leaves lying around (r8
+    # attribution discipline, guard edition).
+    kernel_dirt_before = touched_kernel_paths(
+        repo, "", "",
+        include_working_tree=True,
+        kernel_paths=cfg.get("kernel_paths"),
+    )
     adapter_fn = adapters.get_adapter(cfg["builder"]["adapter"])
     b_timeout = builder_timeout or cfg["builder"]["timeout_s"]
     try:
@@ -241,10 +251,23 @@ def _run_tick_locked(repo, cfg, fdir, force=False, dry_run=False,
                         "next_actionable can never resume it (rule 1: claim the rung "
                         "in the same commit as the work)")
 
-    k_touched = touched_kernel_paths(
+    # committed kernel touches by this tick + NEW uncommitted kernel dirt
+    # (pre-existing dirt was snapshotted in kernel_dirt_before and is not
+    # this tick's doing). Both legs are scoped to the lane's watch_paths:
+    # kernel churn outside the scope is co-tenant territory (r8 discipline).
+    _wp = resolve_watch_paths(repo)
+    k_committed = [p for p in touched_kernel_paths(
         repo, head_before, head_after,
+        include_working_tree=False,
+        kernel_paths=cfg.get("kernel_paths"),
+    ) if in_watch_scope(p, _wp)]
+    k_dirt_after = [p for p in touched_kernel_paths(
+        repo, "", "",
         include_working_tree=True,
         kernel_paths=cfg.get("kernel_paths"),
+    ) if in_watch_scope(p, _wp)]
+    k_touched = sorted(
+        set(k_committed) | (set(k_dirt_after) - set(kernel_dirt_before))
     )
     if k_touched and not decision_log.un_abortedgos(repo, "kernel_edit"):
         problems.append(

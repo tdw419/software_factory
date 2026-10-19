@@ -18,7 +18,8 @@ from pathlib import Path
 
 from . import queue_state
 from .common import (DEFAULT_ALLOWLIST, git, git_root, is_under_allowlist,
-                     resolve_allowlist, scoped_dirty_rows, sha16)
+                     resolve_allowlist, scoped_dirty_rows, scoped_last_commit,
+                     sha16)
 
 
 class Fingerprint:
@@ -42,12 +43,18 @@ def _under_allowlist(path: str, allowlist) -> bool:
     return is_under_allowlist(path, allowlist)
 
 
-def compute(repo, allowlist=None, ladder=None) -> Fingerprint:
+def compute(repo, allowlist=None, ladder=None, watch_paths=None) -> Fingerprint:
     """Build the stable fingerprint for repo.
 
     ladder: optional {"path": relpath, "line_prefix": "- Rung"} — status lines
     of a ladder/roadmap file hash in so ladder edits wake the lane even when
     QUEUE_STATE is untouched.
+    watch_paths: lane-relative pathspecs scoping the HEAD part (r8) — the
+    fingerprint's HEAD is the last commit TOUCHING those paths, not the
+    repo-global HEAD, so a lane nested in a bigger repo (or sharing it with
+    an incumbent lane's bookkeeping) wakes only on its own scope. Default
+    from config digest.watch_paths, else (".",) — the lane's subtree;
+    repo-root lanes keep the v0.4.0 repo-global behavior byte-identically.
     """
     repo = Path(repo)
     allowlist = resolve_allowlist(repo, allowlist)
@@ -56,10 +63,10 @@ def compute(repo, allowlist=None, ladder=None) -> Fingerprint:
     root = git_root(repo)
     if root is None:
         return Fingerprint({}, degraded=True)
-    r = git(repo, "rev-parse", "HEAD")
-    if r.returncode != 0:
+    head = scoped_last_commit(repo, watch_paths)
+    if not head:
         return Fingerprint({}, degraded=True)
-    parts["HEAD"] = r.stdout.strip()[:12]
+    parts["HEAD"] = head
 
     fdir = queue_state.factory_dir(repo)
     q = queue_state.queue_path(repo)

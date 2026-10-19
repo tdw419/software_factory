@@ -244,6 +244,69 @@ def touched_kernel_paths(repo, base_rev: str, target_rev: str = "HEAD",
     return matched
 
 
+def resolve_watch_paths(repo, watch_paths=None) -> tuple:
+    """Resolve the HEAD watch pathspecs for repo from explicit arg or
+    digest.watch_paths in .factory/config.json, defaulting to (".",) — the
+    lane's own subtree. Repo-root lanes therefore keep repo-global HEAD
+    behavior; nested lanes scope to themselves without configuration."""
+    if watch_paths is None:
+        cfg_path = factory_dir(repo) / "config.json"
+        if cfg_path.exists():
+            try:
+                cfg = load_json(cfg_path)
+                wp = cfg.get("digest", {}).get("watch_paths")
+                if wp is not None:
+                    watch_paths = wp
+            except Exception:
+                pass
+    if isinstance(watch_paths, str):
+        watch_paths = [watch_paths]
+    wp = tuple(watch_paths) if watch_paths else (".",)
+    return tuple(str(p) for p in wp)
+
+
+def in_watch_scope(path: str, watch_paths) -> bool:
+    """True if a lane-relative path falls inside the lane's watch scope.
+
+    Co-tenant rule: kernel surfaces OUTSIDE the lane's watch scope are the
+    incumbent's territory; their churn (dirt or commits) is never attributed
+    to this lane's builders.
+    """
+    for w in watch_paths:
+        w = str(w).rstrip("/") or "."
+        if w == "." or path == w or path.startswith(w + "/"):
+            return True
+    return False
+
+
+def scoped_last_commit(repo, watch_paths=None) -> str:
+    """Last commit (12-hex) touching the watch pathspecs, lane-relative.
+
+    "NONE" when no commit in history touches them (stable sentinel — a
+    first commit inside the scope then wakes the lane). "" signals git
+    failure: the caller must treat the fingerprint as DEGRADED.
+    """
+    repo = Path(repo)
+    watch_paths = resolve_watch_paths(repo, watch_paths)
+    root = git_root(repo)
+    if root is None:
+        return ""
+    rel = os.path.relpath(repo, root)
+    specs = []
+    for wp in watch_paths:
+        wp = wp.strip().replace(os.sep, "/")
+        if not wp:
+            continue
+        specs.append(os.path.normpath(os.path.join(rel, wp)))
+    if not specs:
+        specs = [rel]
+    r = git(root, "log", "-1", "--format=%H", "--", *specs)
+    if r.returncode != 0:
+        return ""
+    out = r.stdout.strip()
+    return out[:12] if out else "NONE"
+
+
 def scoped_dirty_rows(repo, allowlist=None) -> tuple:
     """Return (ok: bool, rows: list[str]) of dirty git status lines scoped to repo
     and filtered by allowlist."""

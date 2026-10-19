@@ -7,9 +7,11 @@ mechanical second checker.
 
 Zero dependencies. Python >= 3.10 stdlib only.
 
-This is not a novel design — every mechanism here is distilled from a
-production lane (the geometry_os compositor lane, 2026-10) that ran
-autonomously for weeks and survived its own failure modes. See
+This is not a novel design — every mechanism here is distilled from
+production lanes (geometry_os + the Visual Audio compositor lane, 2026-10)
+that ran autonomously for weeks: 353 ticks and 5,843 decision records on
+the largest, which absorbed 405 recorded failures, 81 gate operations, 16
+lock contentions and 3 discipline violations while still landing rungs. See
 `templates/LANE_RULES.md` for the mechanism-by-mechanism lineage.
 
 ## Install
@@ -48,6 +50,40 @@ tokens when the repo actually changes.
 Each tick hashes a stable fingerprint: HEAD + queue_state + tickets + tree
 dirt (minus the churn allowlist) + ladder status lines. Unchanged
 fingerprint -> the tick is a cheap no-op. Changed -> dispatch.
+
+### Scoped lanes (watch_paths, r8)
+
+The HEAD part is the last commit TOUCHING the lane's `digest.watch_paths`
+(lane-relative pathspecs; default `["."]` = the lane's own subtree — for a
+repo-root lane this is exactly the old repo-global HEAD, byte-identical).
+A lane nested inside a bigger repo — or sharing one with another lane's
+bookkeeping (e.g. an incumbent `.builder_queue/`) — scopes HEAD so foreign
+commits don't wake it:
+
+```json
+{ "digest": { "watch_paths": ["systems", "docs"] } }
+```
+
+No commit in history touches the watch paths -> the HEAD part is the
+stable sentinel `NONE` (the scope's first commit then wakes the lane).
+Git failure -> DEGRADED, never dispatches.
+
+### Co-tenanted lanes (kernel guard attribution, r9)
+
+The kernel guard attributes churn the same way the digest attributes HEAD:
+to THIS lane's tick, not to the repo's ambient state.
+
+- **Tick post-check**: kernel surfaces = committed kernel touches in
+  `head_before..head_after` plus the working-tree DELTA (dirt after minus a
+  pre-dispatch baseline). Pre-existing dirt — the incumbent's bookkeeping —
+  is never a violation.
+- **Observer**: kernel-guard reports committed kernel touches since the
+  lane's creation head (stateless tuple stays stable under co-tenant churn).
+- **Watch-scope filter**: kernel churn OUTSIDE the lane's `digest.watch_paths`
+  is co-tenant territory on both surfaces and never attributed here. A lane
+  guarding `.builder_queue/` while watching `["systems"]` gets a stable
+  `kernel_guard=OK`; a lane whose kernel surfaces sit inside its scope
+  (e.g. sf_next) keeps the full guard.
 
 Failure semantics, learned the hard way:
 
@@ -185,3 +221,13 @@ QUEUE_STATE.json + 11 lane rules, gate_b_go.sh (GO/abort spend accounting),
 RUNG1_TICKET.md (ticket anatomy), and the lane's failure record (HEAD.lock
 races, fetch-storm false wakes, escaped-em-dash GO mismatch, watchdog
 self-wake loops, silent stalls from idle-tick suppression).
+
+Measured 2026-10-19, so the claim above is checkable: the Visual Audio
+lane's decision log (`visual_audio/.builder_queue/decision_log.jsonl`) holds
+5,843 records spanning 2026-10-01 → 2026-10-13 in-log — ticks 1–303 in the
+log, 353 by 2026-10-18 in git — including 405 failure-shaped records, 81
+gate operations, 16 lock contentions, 3 discipline violations and 2 parks,
+with the lane still landing rungs throughout. The geometry_os distillation
+artifacts live in `geometry_os/geometry_os/.builder_queue/`:
+`rung1_monitor.py`, `QUEUE_STATE.json` (11 rules verified),
+`RUNG1_TICKET.md`.

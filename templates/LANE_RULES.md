@@ -15,6 +15,7 @@ encodes an incident from the source lane. Read before editing.
 | 7 | COMMIT PER SUB-STEP | an iteration cap arrived mid-multipart change; uncommitted sub-steps were orphaned |
 | 8 | GATE TIMEOUTS: explicit timeout below scheduler kill threshold | a bare long suite wedged the tick; the scheduler killed it; nothing recorded why |
 | 9 | COMMIT SCOPE: enumerate paths, never `git add -A` | unrelated dirty files swept into lane commits; provenance destroyed |
+| 10 | GO-GATE LOGS ARE LANE-PRIVATE: never publish a decision_log carrying gate records | byte-exact phrase gates lose their point when the phrases ship public; a published phrase becomes corpus any future agent can ingest and replay into an unrelated lane |
 
 Deliberately NOT in the defaults: the source lane's rule 9 (z_order tie
 order) — domain-specific, lives in that lane's queue file, not the product.

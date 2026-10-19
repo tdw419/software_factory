@@ -110,6 +110,7 @@ DEFAULT_CONFIG = {
             ".factory/tick.lock",
         ],
         "ladder": {"path": "", "line_prefix": "- Rung"},
+        "watch_paths": ["."],
     },
     "observer": {
         "stale_secs": 5400,

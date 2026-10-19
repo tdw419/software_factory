@@ -75,6 +75,42 @@ FAKE_BUILDER = textwrap.dedent("""\
         qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
         g("add", ".factory/queue_state.json")
         g("commit", "-qm", f"{rid}: pin sha")
+    elif mode == "kernel_dirt":
+        # lands the rung properly but leaves an UNCOMMITTED kernel-path edit
+        (repo / "app.py").write_text("print('uncommitted kernel dirt')\\n")
+        q["rungs"][rid].update(status="LANDED", claimed_by="fake-builder",
+                               claimed_at="t", landed_at="t", commit="PENDING")
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
+            "# RECEIPT\\n\\n## What PASS proves\\nfake\\n"
+            "## Commands and outputs\\n```bash\\n$ true\\n# ok\\n```\\n"
+            "## What this does NOT prove\\n- uncommitted kernel dirt\\n")
+        g("add", ".factory/queue_state.json",
+          f".factory/receipts/{rid}_RECEIPT.md")
+        g("commit", "-qm", f"{rid}: land with uncommitted kernel dirt")
+        sha = g("rev-parse", "HEAD").stdout.strip()
+        q["rungs"][rid]["commit"] = sha
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        g("add", ".factory/queue_state.json")
+        g("commit", "-qm", f"{rid}: pin sha")
+    elif mode == "kernel_edit_in_scope":
+        (repo / "sub").mkdir(exist_ok=True)
+        (repo / "sub" / "kern.py").write_text("# kernel in scope\\n")
+        q["rungs"][rid].update(status="LANDED", claimed_by="fake-builder",
+                               claimed_at="t", landed_at="t", commit="PENDING")
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        (repo / f".factory/receipts/{rid}_RECEIPT.md").write_text(
+            "# RECEIPT\\n\\n## What PASS proves\\nfake\\n"
+            "## Commands and outputs\\n```bash\\n$ true\\n# ok\\n```\\n"
+            "## What this does NOT prove\\n- in-scope kernel edit\\n")
+        g("add", "sub/kern.py", ".factory/queue_state.json",
+          f".factory/receipts/{rid}_RECEIPT.md")
+        g("commit", "-qm", f"{rid}: in-scope kernel edit")
+        sha = g("rev-parse", "HEAD").stdout.strip()
+        q["rungs"][rid]["commit"] = sha
+        qp.write_text(json.dumps(q, indent=2, ensure_ascii=False))
+        g("add", ".factory/queue_state.json")
+        g("commit", "-qm", f"{rid}: pin sha")
     # mode "nothing": exit 0 without touching anything
 """)
 
@@ -276,6 +312,70 @@ def test_unclaimed_in_progress_violates_queue_discipline(repo):
     assert "QUEUE DISCIPLINE" in failed[-1]["tick_failed"]["problem"]
     # and it was NOT a wake-discipline hit: the builder did commit
     assert "WAKE DISCIPLINE" not in failed[-1]["tick_failed"]["problem"]
+
+
+def test_kernel_guard_ignores_pre_existing_kernel_dirt(repo):
+    # co-tenant lanes: dirt under kernel_paths that PREDATES the tick (the
+    # incumbent's ambient bookkeeping) must not be attributed to this tick
+    setup_builder(repo, "land")
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+    (repo / "app.py").write_text("print('incumbent ambient dirt')\n")
+    code1, msg1 = tick.run_tick(repo)
+    assert code1 == 0, msg1
+    assert "RECURSION GUARD" not in msg1
+    # second tick: suppressed / no_actionable, still no guard problem
+    code2, msg2 = tick.run_tick(repo)
+    assert code2 == 0 and "RECURSION GUARD" not in msg2
+
+
+def test_kernel_guard_flags_new_working_tree_kernel_dirt(repo):
+    # a builder that dirties a kernel surface WITHOUT committing is still
+    # caught — the working-tree DELTA (not absolute dirt) is the signal
+    setup_builder(repo, "kernel_dirt")
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+    code1, msg1 = tick.run_tick(repo)
+    assert code1 == tick.EXIT_BUILDER_FAILED, msg1
+    assert "RECURSION GUARD" in msg1
+
+
+def test_kernel_guard_ignores_out_of_scope_kernel_commit(repo):
+    # co-tenant: a builder-commit touching a kernel path OUTSIDE the
+    # lane's watch scope (incumbent bookkeeping landing mid-tick) must
+    # not be attributed to this lane
+    setup_builder(repo, "kernel_edit")
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg["digest"] = {"watch_paths": ["sub"]}
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+    (repo / "sub").mkdir(exist_ok=True)
+    (repo / "sub" / "keep.txt").write_text("x\n")
+    import subprocess as sp
+    sp.run(["git", "-C", str(repo), "add", "sub/keep.txt"], check=True)
+    sp.run(["git", "-C", str(repo), "commit", "-qm", "scope seed"],
+           check=True)
+    code1, msg1 = tick.run_tick(repo)
+    assert code1 == 0, msg1
+    assert "RECURSION GUARD" not in msg1
+
+
+def test_kernel_guard_flags_in_scope_kernel_commit(repo):
+    # pin: kernel commits INSIDE the lane's watch scope stay guarded
+    setup_builder(repo, "kernel_edit_in_scope")
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["sub/kern.py"]
+    cfg["digest"] = {"watch_paths": ["sub"]}
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+    code1, msg1 = tick.run_tick(repo)
+    assert code1 == tick.EXIT_BUILDER_FAILED, msg1
+    assert "RECURSION GUARD" in msg1
 
 
 def test_recursion_guard_blocks_unauthorized_kernel_edit_and_allows_with_go(repo):
