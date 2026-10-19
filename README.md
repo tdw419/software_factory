@@ -7,9 +7,11 @@ mechanical second checker.
 
 Zero dependencies. Python >= 3.10 stdlib only.
 
-This is not a novel design — every mechanism here is distilled from a
-production lane (the geometry_os compositor lane, 2026-10) that ran
-autonomously for weeks and survived its own failure modes. See
+This is not a novel design — every mechanism here is distilled from
+production lanes (geometry_os + the Visual Audio compositor lane, 2026-10)
+that ran autonomously for weeks: 353 ticks and 5,843 decision records on
+the largest, which absorbed 405 recorded failures, 81 gate operations, 16
+lock contentions and 3 discipline violations while still landing rungs. See
 `templates/LANE_RULES.md` for the mechanism-by-mechanism lineage.
 
 ## Install
@@ -219,3 +221,13 @@ QUEUE_STATE.json + 11 lane rules, gate_b_go.sh (GO/abort spend accounting),
 RUNG1_TICKET.md (ticket anatomy), and the lane's failure record (HEAD.lock
 races, fetch-storm false wakes, escaped-em-dash GO mismatch, watchdog
 self-wake loops, silent stalls from idle-tick suppression).
+
+Measured 2026-10-19, so the claim above is checkable: the Visual Audio
+lane's decision log (`visual_audio/.builder_queue/decision_log.jsonl`) holds
+5,843 records spanning 2026-10-01 → 2026-10-13 in-log — ticks 1–303 in the
+log, 353 by 2026-10-18 in git — including 405 failure-shaped records, 81
+gate operations, 16 lock contentions, 3 discipline violations and 2 parks,
+with the lane still landing rungs throughout. The geometry_os distillation
+artifacts live in `geometry_os/geometry_os/.builder_queue/`:
+`rung1_monitor.py`, `QUEUE_STATE.json` (11 rules verified),
+`RUNG1_TICKET.md`.
