@@ -26,3 +26,4 @@
 {"actor": "builder", "claim": {"rung": "r6", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-18T20:52:10.307398+00:00"}
 {"actor": "builder", "note": "r6 fix: _single_path_under_allowlist routes entries with *?[ through fnmatch.fnmatch (full rel path); exact/prefix branch untouched; digest+observer share it via is_under_allowlist", "ts": "2026-10-18T20:57:36.896295+00:00"}
 {"actor": "builder", "rung_landed": {"rung": "r6", "status": "LANDED", "commit": "371f1d2", "receipt": ".factory/receipts/r6_RECEIPT.md"}, "ts": "2026-10-18T21:03:07.294433+00:00"}
+{"actor": "factory-tick", "tick": {"rung": "r6", "wake": "change", "resuming": false, "builder_exit": 0, "verify": "pass", "head_before": "69c41b9738e3", "head_after": "de80c0c467b1", "receipt": ".factory/receipts/r6_RECEIPT.md", "rung_status": "LANDED"}, "ts": "2026-10-18T21:04:39.230200+00:00"}

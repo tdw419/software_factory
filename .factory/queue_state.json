@@ -69,6 +69,17 @@
       "claimed_at": "2026-10-18T20:52:10.307398+00:00",
       "landed_at": "2026-10-18T21:03:07.294433+00:00",
       "commit": "371f1d2"
+    },
+    "r7": {
+      "status": "DRAFT",
+      "title": "suppressed-tick heartbeat persistence",
+      "ticket": ".factory/tickets/r7_suppressed_tick_persistence.md",
+      "receipt": ".factory/receipts/r7_RECEIPT.md",
+      "claimed_by": null,
+      "opened": "2026-10-19T00:07:58.620033+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
     }
   },
   "infra_notes": [],
