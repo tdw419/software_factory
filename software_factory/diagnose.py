@@ -35,6 +35,7 @@ import re
 from datetime import datetime
 
 from . import decision_log, queue_state
+from .common import atomic_write_text, resolve_kernel_paths, resolve_ladder
 
 #: Sliding window = the newest N deduped records are counted.
 DEFAULT_WINDOW = 50
@@ -50,12 +51,60 @@ _PROBLEM_RULES = (
     ("QUEUE DISCIPLINE", "queue_discipline"),
     ("verify gate TIMEOUT", "verify_timeout"),
     ("verify gate RED", "verify_red"),
+    ("builder TIMEOUT", "builder_timeout"),
     ("builder exit", "builder_exit"),
     ("receipt", "receipt"),
 )
 
 #: Rung statuses whose `covers` suppress a signature outright.
 COVERING_STATUSES = ("DRAFT", "OPEN", "IN_PROGRESS")
+
+#: Circuit breaker: max rungs with origin="self" in an active status.
+DEFAULT_MAX_ACTIVE_DRAFTS = 2
+
+#: Self-drafted ticket template — deterministic, evidence-cited, no LLM.
+#: The human gate at DRAFT -> OPEN stays sovereign: drafted rungs are never
+#: registered in any status other than DRAFT.
+DRAFT_TICKET_TEMPLATE = """# TICKET — {rung_id}: {title}
+
+## Charter
+Self-drafted by `factory diagnose --draft` from decision_log evidence
+(origin="self", status="DRAFT"). The human gate at DRAFT -> OPEN is
+sovereign: this rung does not enter the build queue until a human opens it.
+
+## Goal
+Eliminate the recurring lane pattern `{signature}` (observed {count}x in the
+diagnose window) so the signature stops re-firing.
+
+## Stages
+- probe (disruption 0): inspect the cited decision_log records below; measure
+  the current behavior on the real lane.
+- RED: add a failing test that reproduces the pattern.
+- GREEN: implement the fix; full test suite green under an explicit timeout.
+- land: receipt at {receipt}, queue_state status=LANDED with the real commit
+  sha, ladder line synced.
+
+## Constraints
+- NEVER modify kernel_paths ({kernel_paths}); kernel-surface changes require
+  an operator-fired kind='kernel_edit' GO gate (lane RECURSION GUARD).
+- Lane rules in queue_state.json apply (RED-first, receipt per ticket,
+  commit per sub-step, enumerated commit scope, gate timeouts).
+
+## Evidence (from decision_log — do not re-derive)
+- signature: {signature}
+- count: {count}
+- evidence ts: {evidence}
+
+## What this does NOT prove
+- The pattern is counted, not diagnosed: the fix approach is unproven until a
+  builder lands it with a receipt.
+- Landing this rung does not guarantee the signature never re-fires;
+  diagnose re-fires the finding when newer evidence postdates landed_at.
+"""
+
+
+def _slug(sig: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", sig.lower()).strip("_") or "unknown"
 
 
 def classify_problem(problem: str) -> str:
@@ -143,9 +192,9 @@ def _covered(repo, signature: str, evidence_ts: list) -> bool:
     return False
 
 
-def findings(repo, cfg=None) -> list:
-    """Return finding lines (sorted by signature) + the trailing
-    findings=<n> line. Read-only; never raises for lane faults."""
+def _compute(repo, cfg=None) -> list:
+    """Uncovered findings as (signature, count, evidence_ts) tuples, sorted
+    by signature. Read-only; never raises for lane faults."""
     cfg = cfg or {}
     thresholds = dict(DEFAULT_THRESHOLDS)
     thresholds.update(cfg.get("thresholds") or {})
@@ -190,15 +239,96 @@ def findings(repo, cfg=None) -> list:
         out.append(("stall", len(streak), streak))
     if _state(repo).get("parked") and not _covered(repo, "parked", streak):
         out.append(("parked", 1, streak))  # parked is a STATE: count is 1
+    return sorted(out)
 
+
+def findings(repo, cfg=None) -> list:
+    """Return finding lines (sorted by signature) + the trailing
+    findings=<n> line. Read-only; never raises for lane faults."""
     lines = [f"finding: {sig} count={count} evidence={','.join(tss)}"
-             for sig, count, tss in sorted(out)]
-    lines.append(f"findings={len(out)}")
+             for sig, count, tss in _compute(repo, cfg=cfg)]
+    lines.append(f"findings={len(lines)}")
     return lines
 
 
-def run(repo, cfg=None) -> list:
-    """Print the findings and return the lines (observer.run convention)."""
-    lines = findings(repo, cfg=cfg)
+def _ladder_append(repo, line: str) -> None:
+    """Append one ladder line to the configured ladder file, when configured
+    and present (digest.ladder — same source digest.compute() hashes)."""
+    ladder = resolve_ladder(repo)
+    if not ladder.get("path"):
+        return
+    lp = repo / ladder["path"]
+    if not lp.is_file():
+        return
+    with open(lp, "a", encoding="utf-8") as f:
+        f.write(line + "\n")
+
+
+def _draft(repo, cfg, found: list) -> list:
+    """Draft at most one DRAFT rung per uncovered finding, under the
+    max_active_drafts circuit breaker. Returns the extra stdout lines
+    (drafted: ... / draft_skipped=cap_reached). Writes: ticket file,
+    queue_state.json, ladder append, decision_log provenance."""
+    cfg = cfg or {}
+    try:
+        cap = int(cfg.get("max_active_drafts", DEFAULT_MAX_ACTIVE_DRAFTS))
+    except (TypeError, ValueError):
+        cap = DEFAULT_MAX_ACTIVE_DRAFTS
+
+    try:
+        q = queue_state.load(repo)
+    except Exception:
+        return ["draft_skipped=queue_unreadable"]
+    active = sum(1 for r in q.get("rungs", {}).values()
+                 if r.get("origin") == "self" and r.get("status") in COVERING_STATUSES)
+
+    kernel_paths = ", ".join(resolve_kernel_paths(repo)) \
+        or "(none configured — see .factory/config.json:kernel_paths)"
+    extra = []
+    for sig, count, tss in found:
+        if active >= cap:
+            extra.append("draft_skipped=cap_reached")
+            break
+        base = _slug(sig)
+        rid = f"auto_{base}"
+        if rid in q["rungs"]:
+            continue  # never clobber an existing rung
+        ticket_rel = f".factory/tickets/{rid}_{base}.md"
+        receipt_rel = f".factory/receipts/{rid}_RECEIPT.md"
+        title = f"Auto-draft: address {sig}"
+        atomic_write_text(repo / ticket_rel, DRAFT_TICKET_TEMPLATE.format(
+            rung_id=rid, title=title, signature=sig, count=count,
+            evidence=", ".join(tss), receipt=receipt_rel,
+            kernel_paths=kernel_paths))
+        queue_state.register_rung(q, rid, title, ticket_rel,
+                                  receipt=receipt_rel, status="DRAFT",
+                                  covers=[sig], origin="self")
+        queue_state.save(repo, q)
+        _ladder_append(repo, f"- Rung {rid} [DRAFT]: {title} ({ticket_rel})")
+        decision_log.append(repo, {
+            "actor": "factory-diagnose",
+            "diagnose_drafted": {"rung": rid, "signature": sig,
+                                 "count": count, "evidence": list(tss)},
+        })
+        extra.append(f"drafted: {rid} covers={sig} ticket={ticket_rel}")
+        active += 1
+    return extra
+
+
+def run(repo, cfg=None, draft=False) -> list:
+    """Print the findings and return the lines (observer.run convention).
+
+    Bare run stays 100% read-only. With draft=True, uncovered findings are
+    drafted as DRAFT rungs (origin="self") BEFORE the findings lines are
+    recomputed — a drafted signature is immediately covered, so the trailing
+    findings=<n> reflects the post-draft state.
+    """
+    if not draft:
+        lines = findings(repo, cfg=cfg)
+        print("\n".join(lines))
+        return lines
+    found = _compute(repo, cfg=cfg)  # compute BEFORE any writes
+    extra = _draft(repo, cfg, found)
+    lines = extra + findings(repo, cfg=cfg)
     print("\n".join(lines))
     return lines
