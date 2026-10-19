@@ -40,6 +40,40 @@ def test_clean_lane_observes_clean(repo):
     assert d["tree"] == "CLEAN"
 
 
+def test_kernel_guard_ignores_out_of_scope_kernel_commit(repo):
+    # co-tenant: committed kernel-path changes OUTSIDE the lane's watch scope
+    # (the incumbent's bookkeeping) never enter the observer tuple
+    healthy_lane(repo)
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg["digest"] = {"watch_paths": ["sub"]}
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+    (repo / "sub").mkdir(exist_ok=True)
+    (repo / "sub" / "keep.txt").write_text("x\n")
+    (repo / "app.py").write_text("print('co-tenant committed work')\n")
+    git(repo, "add", "app.py", "sub/keep.txt")
+    git(repo, "commit", "-qm", "co-tenant: bookkeeping")
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["kernel_guard"] == "OK"
+
+
+def test_kernel_guard_ignores_pre_existing_dirt(repo):
+    # ambient co-tenant dirt under kernel_paths must not pin the observer
+    # tuple at VIOLATION forever — only COMMITTED kernel touches since the
+    # lane's creation head are guard-relevant (uncommitted-edit detection
+    # lives in the tick's working-tree DELTA, not the stateless observer)
+    healthy_lane(repo)
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["kernel_paths"] = ["app.py"]
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+    (repo / "app.py").write_text("print('ambient dirt')\n")
+    lines = observer.observe(repo)
+    d = dict(ln.split("=", 1) for ln in lines)
+    assert d["kernel_guard"] == "OK"
+
+
 def test_observer_output_is_stable(repo):
     healthy_lane(repo)
     a = observer.observe(repo)
@@ -284,8 +318,13 @@ def test_observer_surfaces_kernel_guard_violation_and_authorization(repo):
     d0 = dict(ln.split("=", 1) for ln in observer.observe(repo))
     assert d0["kernel_guard"] == "OK"
 
-    # Dirty kernel without GO -> VIOLATION(app.py)
+    # Committed kernel edit without GO -> VIOLATION(app.py)
+    # (uncommitted ambient dirt is co-tenant noise; the observer reports
+    # the committed diff since the lane's creation head — uncommitted
+    # during-tick kernel edits are caught by the tick's working-tree DELTA)
     (repo / "app.py").write_text("print('unauthorized')\n")
+    git(repo, "add", "app.py")
+    git(repo, "commit", "-qm", "unauthorized kernel edit")
     d1 = dict(ln.split("=", 1) for ln in observer.observe(repo))
     assert d1["kernel_guard"] == "VIOLATION(app.py)"
 

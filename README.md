@@ -66,6 +66,23 @@ No commit in history touches the watch paths -> the HEAD part is the
 stable sentinel `NONE` (the scope's first commit then wakes the lane).
 Git failure -> DEGRADED, never dispatches.
 
+### Co-tenanted lanes (kernel guard attribution, r9)
+
+The kernel guard attributes churn the same way the digest attributes HEAD:
+to THIS lane's tick, not to the repo's ambient state.
+
+- **Tick post-check**: kernel surfaces = committed kernel touches in
+  `head_before..head_after` plus the working-tree DELTA (dirt after minus a
+  pre-dispatch baseline). Pre-existing dirt — the incumbent's bookkeeping —
+  is never a violation.
+- **Observer**: kernel-guard reports committed kernel touches since the
+  lane's creation head (stateless tuple stays stable under co-tenant churn).
+- **Watch-scope filter**: kernel churn OUTSIDE the lane's `digest.watch_paths`
+  is co-tenant territory on both surfaces and never attributed here. A lane
+  guarding `.builder_queue/` while watching `["systems"]` gets a stable
+  `kernel_guard=OK`; a lane whose kernel surfaces sit inside its scope
+  (e.g. sf_next) keeps the full guard.
+
 Failure semantics, learned the hard way:
 
 - builder fails or verify RED -> the fingerprint is NOT advanced, so the

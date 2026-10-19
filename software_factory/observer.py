@@ -20,9 +20,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import decision_log, queue_state
-from .common import (atomic_write_text, git, resolve_kernel_paths,
-                     resolve_ladder, scoped_dirty_rows, sha12,
-                     touched_kernel_paths, validate_receipt)
+from .common import (atomic_write_text, git, in_watch_scope,
+                     resolve_kernel_paths, resolve_ladder, resolve_watch_paths,
+                     scoped_dirty_rows, sha12, touched_kernel_paths,
+                     validate_receipt)
 
 
 def _classify_handle(repo, handle: str) -> str:
@@ -109,9 +110,12 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None,
         kpaths = resolve_kernel_paths(repo)
         if kpaths:
             base_head = q.get("repo_head_at_lane_creation") or ""
-            ktouched = touched_kernel_paths(repo, base_head, "HEAD",
-                                            include_working_tree=True,
-                                            kernel_paths=kpaths)
+            _wp = resolve_watch_paths(repo)
+            ktouched = [p for p in touched_kernel_paths(
+                            repo, base_head, "HEAD",
+                            include_working_tree=False,
+                            kernel_paths=kpaths)
+                        if in_watch_scope(p, _wp)]
             if not ktouched:
                 lines.append("kernel_guard=OK")
             elif decision_log.un_abortedgos(repo, "kernel_edit"):

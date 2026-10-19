@@ -265,6 +265,20 @@ def resolve_watch_paths(repo, watch_paths=None) -> tuple:
     return tuple(str(p) for p in wp)
 
 
+def in_watch_scope(path: str, watch_paths) -> bool:
+    """True if a lane-relative path falls inside the lane's watch scope.
+
+    Co-tenant rule: kernel surfaces OUTSIDE the lane's watch scope are the
+    incumbent's territory; their churn (dirt or commits) is never attributed
+    to this lane's builders.
+    """
+    for w in watch_paths:
+        w = str(w).rstrip("/") or "."
+        if w == "." or path == w or path.startswith(w + "/"):
+            return True
+    return False
+
+
 def scoped_last_commit(repo, watch_paths=None) -> str:
     """Last commit (12-hex) touching the watch pathspecs, lane-relative.
 
