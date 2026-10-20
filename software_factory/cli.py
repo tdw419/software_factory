@@ -128,7 +128,8 @@ def cmd_ticket(args):
         queue_state.register_rung(q, args.id, args.title,
                                   str(p.relative_to(repo)) if p.is_relative_to(repo) else str(p),
                                   receipt=args.receipt or f".factory/receipts/{args.id}_RECEIPT.md",
-                                  status=args.status, covers=_covers_list(args.covers))
+                                  status=args.status, covers=_covers_list(args.covers),
+                                  files=_covers_list(args.files))
         queue_state.save(repo, q)
         print(f"registered rung {args.id} ({args.status}): {args.title}")
         return 0
@@ -138,7 +139,7 @@ def cmd_ticket(args):
             _, changes = queue_state.update_rung(
                 q, args.id, status=args.status, commit=args.commit,
                 receipt=args.receipt, claimed_by=args.claimed_by, title=args.title,
-                covers=_covers_list(args.covers))
+                covers=_covers_list(args.covers), files=_covers_list(args.files))
         except queue_state.QueueError as e:
             print(f"ticket set: {e}")
             return 1
@@ -317,6 +318,8 @@ def build_parser():
     sp2.add_argument("--status", default="OPEN", choices=queue_state.STATUSES)
     sp2.add_argument("--covers", default=None,
                      help="comma-separated signature list (covers: [...] dedup)")
+    sp2.add_argument("--files", default=None,
+                     help="comma-separated expected-touch paths/globs (conflict metadata)")
     sp2.set_defaults(fn=cmd_ticket)
     sp3 = tsub.add_parser("validate")
     sp3.add_argument("ticket")
@@ -331,6 +334,8 @@ def build_parser():
     sp4.add_argument("--title", default=None)
     sp4.add_argument("--covers", default=None,
                      help="comma-separated signature list (covers: [...] dedup)")
+    sp4.add_argument("--files", default=None,
+                     help="comma-separated expected-touch paths/globs (conflict metadata)")
     sp4.set_defaults(fn=cmd_ticket)
 
     sp = sub.add_parser("receipt", help="validate receipts")
