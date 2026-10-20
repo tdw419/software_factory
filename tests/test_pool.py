@@ -267,10 +267,12 @@ def test_plan_dispatch_parked_lane_skipped(repo):
 
 
 def test_plan_dispatch_resumes_claimed_in_progress_despite_conflict(repo):
+    # lane A's own IN_PROGRESS files are seeded into in_flight_files, yet the
+    # claimed rung is selected regardless (it already owns its in-flight work)
     wt = _setup_pool(repo, "laneb")
     _register(repo, "t0", status="IN_PROGRESS", claimed_by="hermes-cli",
               files=["shared.py"])
-    _register(wt, "t1", files=["shared.py"])
+    _register(wt, "t1", files=["other.py"])
     selected, skipped = pool.plan_dispatch(repo)
     assert skipped == []
     assert len(selected) == 2                    # resuming ignores in_flight
@@ -278,12 +280,13 @@ def test_plan_dispatch_resumes_claimed_in_progress_despite_conflict(repo):
 
 
 def test_plan_dispatch_in_progress_blocks_overlapping_open_elsewhere(repo):
+    # ticket RED leg 3: a claimed IN_PROGRESS rung on lane A blocks an
+    # overlapping OPEN rung on lane B (its files are seeded into in_flight)
     wt = _setup_pool(repo, "laneb")
     _register(repo, "t0", status="IN_PROGRESS", claimed_by="hermes-cli",
               files=["shared.py"])
     _register(wt, "t1", files=["shared.py"])
-    _register(wt, "t9", files=["unrelated.py"])  # seeded AFTER t0 registration
-    # re-register ordering: t1 was inserted before t9; make t1 the head OPEN
+    _register(wt, "t9", files=["unrelated.py"])  # t1 is lane B's head OPEN
     selected, skipped = pool.plan_dispatch(repo)
     assert [s["lane"] for s in selected] == ["lane"]   # lane A resumes only
     assert skipped == ["dispatch_skipped: laneb reason=file_conflict"]

@@ -263,6 +263,15 @@ def cmd_pool(args):
     return 0
 
 
+def cmd_dispatch(args):
+    repo = _repo(args)
+    extra = _covers_list(getattr(args, "paths", None)) or ()
+    return pool.dispatch(repo, extra_paths=extra, dry_run=args.dry_run,
+                         max_parallel=args.max_parallel,
+                         builder_timeout=args.builder_timeout,
+                         verify_timeout=args.verify_timeout)
+
+
 def cmd_observe(args):
     repo = _repo(args)
     cfg = _load_cfg_or_none(repo)
@@ -405,6 +414,18 @@ def build_parser():
     sp.add_argument("--paths", default=None,
                     help="comma-separated extra lane paths (repo-relative ok)")
     sp.set_defaults(fn=cmd_pool)
+
+    sp = sub.add_parser("dispatch",
+                        help="conflict-aware multi-lane parallel scheduler")
+    sp.add_argument("--paths", default=None,
+                    help="comma-separated extra lane paths (repo-relative ok)")
+    sp.add_argument("--dry-run", action="store_true",
+                    help="plan only: would_dispatch lines, zero writes")
+    sp.add_argument("--max-parallel", type=int, default=None,
+                    help="cap concurrent dispatches (default: unbounded)")
+    sp.add_argument("--builder-timeout", type=int, default=None)
+    sp.add_argument("--verify-timeout", type=int, default=None)
+    sp.set_defaults(fn=cmd_dispatch)
 
     sp = sub.add_parser("observe", help="mechanical second-checker (stable output)")
     sp.add_argument("--log-dir", default=None)
