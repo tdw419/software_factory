@@ -150,8 +150,9 @@ authorized op times out, `fire` records exit `124` and disarms cleanly.
 Feed it to a separate cron leg. It classifies LANDED commit handles
 (`RESOLVED` / `BROKEN` / `PROSE` / `MISSING`), locates named rules by content
 (never by index), checks receipts exist and contain required sections
-(`receipts_missing`, `receipts_incomplete`), surfaces armed gates
-(`gate_armed`, `gate_armed_stale=yes/no`), and watches the tick heartbeat
+(`receipts_missing`, `receipts_incomplete`), surfaces active self-drafted
+rungs (`self_drafts=<n>` — s3), surfaces armed gates (`gate_armed`,
+`gate_armed_stale=yes/no`), and watches the tick heartbeat
 (with `observer.heartbeat_stale_after_min` armed, freshness is the newest of
 `.factory/runs/` mtime and `.factory/state.json:last_tick_ts`, so `WAKE
 no_actionable` and `degraded` ticks count alongside `suppressed` and builder
@@ -159,19 +160,29 @@ dispatches — r5/r7).
 It never writes the repo. Pair it with the LLM observer prompt in
 `.factory/templates/OBSERVER_PROMPT.md` for a judgment leg.
 
-### Self-diagnosis (`diagnose`, s1)
+### Self-diagnosis (`diagnose`, s1–s3)
 
-    factory diagnose                               # deterministic findings + findings=<n>
+    factory diagnose                               # deterministic findings + findings=<n> (read-only)
+    factory diagnose --draft                       # draft evidence-cited DRAFT rungs (human veto at OPEN)
+    factory ticket set r9 --covers violation:kernel_edit,failure_class:recursion_guard
 
-A read-only pattern counter over the lane's own decision history (same trust
-tier as the observer: pure function, zero LLM calls, zero writes). It scans
-`decision_log.archive.jsonl` + `decision_log.jsonl` deduplicated by `ts`
-(compaction-proof across `factory log compact`), buckets `tick_failed`,
-`gate_refused`, and `rung_demoted` records into deterministic signatures
-(`failure_class:<pattern>`, `violation:<kind>`, `stall`, `parked`), and
-suppresses signatures covered by `DRAFT`/`OPEN`/`IN_PROGRESS` rungs (or
-`LANDED` rungs whose `landed_at` is at/after the newest cited evidence;
-post-fix recurrences re-fire).
+A deterministic pattern counter over the lane's own decision history (same
+trust tier as the observer: pure function, zero LLM calls; bare `diagnose`
+performs zero writes). It scans `decision_log.archive.jsonl` +
+`decision_log.jsonl` deduplicated by `ts` (compaction-proof across `factory
+log compact`), buckets `tick_failed`, `gate_refused`, and `rung_demoted`
+records into deterministic signatures (`failure_class:<pattern>` including
+`builder_timeout`, `violation:<kind>`, `stall`, `parked`), and suppresses
+signatures covered by `DRAFT`/`OPEN`/`IN_PROGRESS` rungs (or `LANDED` rungs
+whose `landed_at` is at/after the newest cited evidence; post-fix recurrences
+re-fire).
+
+With `--draft` (s2), uncovered findings are drafted as `status="DRAFT"`,
+`origin="self"`, `covers=[<signature>]` rungs citing exact `decision_log`
+timestamps, bounded by `diagnose.max_active_drafts` (default `2`) and synced
+to the configured ladder (`ROADMAP.md`). `factory observe` surfaces the active
+self-draft population as `self_drafts=<n>` (s3) using the identical predicate
+as the breaker so human veto/open decisions stay visible on the 20m readout.
 
 ### Human gate (ASKs)
 
