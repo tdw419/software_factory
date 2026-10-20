@@ -35,3 +35,4 @@ untouched.
 
 - Rung s1 [LANDED]: `factory diagnose` read-only — mechanical failure-class counter over live + archived decision log (ts-deduped), signature-key findings, queue-dedup with recurrence re-fire (`.factory/tickets/s1_diagnose.md`)
 - Rung s2 [LANDED] (c57fc78f74a4): `factory diagnose --draft` + `builder_timeout` bucket + CLI `--covers` — evidence-cited DRAFT tickets (`origin="self"`, `max_active_drafts` cap, ladder sync, non-kernel constraint) (`.factory/tickets/s2_diagnose_draft.md`)
+- Rung s3 [DRAFT]: observer surfaces `self_drafts=N` — same origin="self"+DRAFT/OPEN/IN_PROGRESS population `diagnose.py`'s breaker counts, read-only, legacy lanes report 0 (`.factory/tickets/s3_diagnose_observer_surface.md`)

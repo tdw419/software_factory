@@ -102,6 +102,17 @@
       "claimed_at": "2026-10-19T15:26:45.012173+00:00",
       "landed_at": "2026-10-19T15:52:42.683894+00:00",
       "commit": "c57fc78f74a4"
+    },
+    "s3": {
+      "status": "DRAFT",
+      "title": "observer surfaces self_drafts=N",
+      "ticket": ".factory/tickets/s3_diagnose_observer_surface.md",
+      "receipt": ".factory/receipts/s3_RECEIPT.md",
+      "claimed_by": null,
+      "opened": "2026-10-20T01:13:22.221156+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
     }
   },
   "infra_notes": [
