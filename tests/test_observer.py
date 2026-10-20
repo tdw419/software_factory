@@ -40,6 +40,49 @@ def test_clean_lane_observes_clean(repo):
     assert d["tree"] == "CLEAN"
 
 
+def _self_rung(q, rid, status, origin="self"):
+    queue_state.register_rung(q, rid, f"auto {rid}",
+                              f".factory/tickets/{rid}.md", status=status,
+                              origin=origin)
+    return q
+
+
+def test_self_drafts_counts_only_active_self_origin_rungs(repo):
+    # s3: the observer must surface the exact population diagnose.py's
+    # max_active_drafts breaker counts: origin="self" AND status in
+    # (DRAFT, OPEN, IN_PROGRESS). LANDED self-rungs do not count.
+    healthy_lane(repo)
+    q = queue_state.load(repo)
+    _self_rung(q, "d1", "DRAFT")
+    _self_rung(q, "d2", "OPEN")
+    _self_rung(q, "d3", "LANDED")
+    queue_state.save(repo, q)
+    lines = observer.observe(repo)
+    d = dict(ln.split("=", 1) for ln in lines)
+    assert d["self_drafts"] == "2"
+    # placement contract: immediately after the receipts block, so a human
+    # scanning the cron readout reads it as the next line after receipts
+    assert lines.index("self_drafts=2") == \
+        lines.index("receipts_missing=none") + 1
+
+
+def test_self_drafts_legacy_lane_reports_zero(repo):
+    # rungs with no origin field at all (every lane pre-s2) must read as
+    # zero, never missing/error — absence of the field is the common case.
+    healthy_lane(repo)
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["self_drafts"] == "0"
+
+
+def test_self_drafts_ignores_terminal_self_origin_rung(repo):
+    healthy_lane(repo)
+    q = queue_state.load(repo)
+    _self_rung(q, "d1", "BLOCKED")  # terminal, outside DRAFT/OPEN/IN_PROGRESS
+    queue_state.save(repo, q)
+    d = dict(ln.split("=", 1) for ln in observer.observe(repo))
+    assert d["self_drafts"] == "0"
+
+
 def test_kernel_guard_ignores_out_of_scope_kernel_commit(repo):
     # co-tenant: committed kernel-path changes OUTSIDE the lane's watch scope
     # (the incumbent's bookkeeping) never enter the observer tuple
