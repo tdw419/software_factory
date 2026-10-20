@@ -39,7 +39,7 @@ untouched.
 
 ### v0.9.0 — parallel lane scaling seeded by operator 2026-10-20 (DRAFT; open via `factory ticket set <id> --status OPEN`)
 
-- Rung p1 [OPEN]: `factory pool` read-only multi-lane registry — discovers worktree + configured lanes, reports state/active/heartbeat/branch/worktree (`observer` trust tier, zero writes) (`.factory/tickets/p1_lane_pool.md`)
+- Rung p1 [LANDED] (1ea1db8cb2ff): `factory pool` read-only multi-lane registry — discovers worktree + configured lanes, reports state/active/heartbeat/branch/worktree (`observer` trust tier, zero writes) (`.factory/tickets/p1_lane_pool.md`)
 - Rung p2 [DRAFT]: rung conflict metadata (`--files`) + symmetric path/glob overlap filter (`files_overlap`, `next_actionable(q, in_flight_files=...)`, zero kernel edits) (`.factory/tickets/p2_conflict_files.md`)
 - Rung p3 [DRAFT]: `factory dispatch` conflict-aware multi-lane parallel scheduler — concurrent ticks across non-conflicting pool lanes, `--dry-run`, `--max-parallel` (`.factory/tickets/p3_parallel_dispatch.md`)
 
