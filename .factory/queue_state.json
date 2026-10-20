@@ -115,13 +115,13 @@
       "commit": "e8c4dfa3cce8"
     },
     "p1": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "factory pool read-only multi-lane registry",
       "ticket": ".factory/tickets/p1_lane_pool.md",
       "receipt": ".factory/receipts/p1_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-20T12:45:09.630669+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-20T12:51:25.761815+00:00",
       "landed_at": null,
       "commit": null
     },
