@@ -204,6 +204,179 @@ def test_zero_write_and_cli(repo, capsys):
     assert summaries[-1] == "lanes=2 active=0 parked=1"
 
 
+# ---------- 4. p3 — plan_dispatch / dispatch (conflict-aware multi-lane) ----------
+
+def _mk_ticket(repo):
+    t = repo / ".factory" / "tickets" / "t1.md"
+    t.parent.mkdir(parents=True, exist_ok=True)
+    t.write_text("# TICKET — t1: demo\n## Goal\nx\n## Stages\n- s\n## Constraints\n- c\n")
+    return t
+
+
+def _register(lane_repo, rid="t1", files=None, status="OPEN", claimed_by=None):
+    from software_factory import queue_state
+    q = queue_state.load(lane_repo)
+    queue_state.register_rung(q, rid, rid, ".factory/tickets/t1.md",
+                              status=status, files=files)
+    if claimed_by:
+        queue_state.update_rung(q, rid, claimed_by=claimed_by)
+    queue_state.save(lane_repo, q)
+
+
+def _setup_pool(repo, name_b, mode="land"):
+    """Main repo = lane A, worktree = lane B; both carry the fake land builder.
+
+    The builder script is committed BEFORE the worktree add so lane B's
+    checkout contains it (untracked files don't propagate to worktrees).
+    """
+    from test_tick_e2e import FAKE_BUILDER
+    b = repo / "_fake_builder.py"
+    b.write_text(FAKE_BUILDER)
+    init_lane(repo, builder_cmd=f"python3 {b} {{repo}} {mode}")
+    _mk_ticket(repo)
+    git(repo, "add", "_fake_builder.py", ".factory/tickets/t1.md")
+    git(repo, "commit", "-qm", "seed fake builder + ticket")
+    wt = repo.parent / name_b
+    git(repo, "worktree", "add", "-q", str(wt), "-b", name_b)
+    assert main(["--repo", str(wt), "init", "--lane", name_b,
+                 "--builder-cmd", f"python3 {b} {{repo}} {mode}"]) == 0
+    _mk_ticket(wt)
+    return wt
+
+
+def test_plan_dispatch_selects_two_nonconflicting_lanes(repo):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["b.py"])
+    selected, skipped = pool.plan_dispatch(repo)
+    assert skipped == []
+    assert [s["lane"] for s in selected] == ["lane", "laneb"]
+    assert [s["rung"] for s in selected] == ["t1", "t1"]
+    assert all(s["resuming"] is False for s in selected)
+
+
+def test_plan_dispatch_parked_lane_skipped(repo):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["b.py"])
+    stp = wt / ".factory" / "state.json"
+    stp.write_text(json.dumps({"parked": True}))
+    selected, skipped = pool.plan_dispatch(repo)
+    assert [s["lane"] for s in selected] == ["lane"]
+    assert skipped == ["dispatch_skipped: laneb reason=parked"]
+
+
+def test_plan_dispatch_resumes_claimed_in_progress_despite_conflict(repo):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t0", status="IN_PROGRESS", claimed_by="hermes-cli",
+              files=["shared.py"])
+    _register(wt, "t1", files=["shared.py"])
+    selected, skipped = pool.plan_dispatch(repo)
+    assert skipped == []
+    assert len(selected) == 2                    # resuming ignores in_flight
+    assert selected[0]["rung"] == "t0" and selected[0]["resuming"] is True
+
+
+def test_plan_dispatch_in_progress_blocks_overlapping_open_elsewhere(repo):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t0", status="IN_PROGRESS", claimed_by="hermes-cli",
+              files=["shared.py"])
+    _register(wt, "t1", files=["shared.py"])
+    _register(wt, "t9", files=["unrelated.py"])  # seeded AFTER t0 registration
+    # re-register ordering: t1 was inserted before t9; make t1 the head OPEN
+    selected, skipped = pool.plan_dispatch(repo)
+    assert [s["lane"] for s in selected] == ["lane"]   # lane A resumes only
+    assert skipped == ["dispatch_skipped: laneb reason=file_conflict"]
+
+
+def test_plan_dispatch_skips_lane_whose_head_open_conflicts(repo):
+    # tick.run_tick is kernel-frozen: it calls next_actionable(q) with no
+    # in_flight_files, so a lane whose HEAD OPEN rung conflicts with another
+    # active lane must be skipped entirely — even though a later OPEN rung
+    # on that lane would be conflict-free.
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["a.py"])
+    _register(wt, "t2", files=["b.py"])
+    selected, skipped = pool.plan_dispatch(repo)
+    assert [s["repo"] for s in selected] == [repo.resolve()]
+    assert skipped == ["dispatch_skipped: laneb reason=file_conflict"]
+
+
+def test_plan_dispatch_idle_lane_silent(repo):
+    wt = _setup_pool(repo, "laneb")              # no rungs on lane B
+    _register(repo, "t1", files=["a.py"])
+    selected, skipped = pool.plan_dispatch(repo)
+    assert [s["lane"] for s in selected] == ["lane"]
+    assert skipped == []
+
+
+def test_dispatch_parallel_two_nonconflicting_lanes(repo, capsys):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["b.py"])
+    assert main(["--repo", str(repo), "dispatch"]) == 0
+    out = capsys.readouterr().out
+    assert "dispatched=2" in out
+    assert "dispatched_lane: lane rung=t1 exit=0" in out
+    assert "dispatched_lane: laneb rung=t1 exit=0" in out
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    qb = json.loads((wt / ".factory" / "queue_state.json").read_text())
+    assert q["rungs"]["t1"]["status"] == "LANDED"
+    assert qb["rungs"]["t1"]["status"] == "LANDED"
+
+
+def test_dispatch_file_conflict_skips_second_lane(repo, capsys):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["shared.py"])
+    _register(wt, "t1", files=["shared.py"])
+    assert main(["--repo", str(repo), "dispatch"]) == 0
+    out = capsys.readouterr().out
+    assert "dispatch_skipped: laneb reason=file_conflict" in out
+    assert "dispatched=1" in out
+    qb = json.loads((wt / ".factory" / "queue_state.json").read_text())
+    assert qb["rungs"]["t1"]["status"] == "OPEN"   # never ticked
+
+
+def test_dispatch_max_parallel_caps_and_skips(repo, capsys):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["b.py"])
+    assert main(["--repo", str(repo), "dispatch", "--max-parallel", "1"]) == 0
+    out = capsys.readouterr().out
+    assert "dispatch_skipped: laneb reason=max_parallel" in out
+    assert "dispatched=1" in out
+    qb = json.loads((wt / ".factory" / "queue_state.json").read_text())
+    assert qb["rungs"]["t1"]["status"] == "OPEN"
+
+
+def test_dispatch_dry_run_zero_writes(repo, capsys):
+    wt = _setup_pool(repo, "laneb")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["b.py"])
+    before = _snapshot(repo.parent)
+    assert main(["--repo", str(repo), "dispatch", "--dry-run"]) == 0
+    out = capsys.readouterr().out
+    assert "would_dispatch: lane rung=t1 files=a.py" in out
+    assert "would_dispatch: laneb rung=t1 files=b.py" in out
+    assert "dispatched=0" in out
+    assert _snapshot(repo.parent) == before      # ZERO writes, incl. mtimes
+
+
+def test_dispatch_via_python_dash_m(repo):
+    wt = _setup_pool(repo, "land", mode="land")
+    _register(repo, "t1", files=["a.py"])
+    _register(wt, "t1", files=["b.py"])
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]))
+    r = subprocess.run(
+        ["/usr/bin/python3.12", "-m", "software_factory.cli",
+         "--repo", str(repo), "dispatch", "--dry-run"],
+        capture_output=True, text=True, cwd=str(repo.parent), env=env)
+    assert r.returncode == 0, r.stderr
+    assert "would_dispatch: lane rung=t1 files=a.py" in r.stdout
+    assert "dispatched=0" in r.stdout
+
+
 def test_pool_via_python_dash_m(repo, capsys):
     init_lane(repo)
     env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]))
