@@ -137,7 +137,7 @@
       "commit": "8d8fea3364c9ee21ea6a7d98729b87c8cf49ef1a"
     },
     "p3": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "factory dispatch conflict-aware multi-lane parallel scheduler",
       "ticket": ".factory/tickets/p3_parallel_dispatch.md",
       "receipt": ".factory/receipts/p3_RECEIPT.md",

@@ -47,3 +47,5 @@
 {"actor": "operator", "rung_updated": {"rung": "p2", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-20T13:17:18.118088+00:00"}
 {"actor": "factory-tick", "tick_failed": {"rung": "p2", "problem": "builder TIMEOUT after 1500s", "verify": null, "transient": true, "head_before": "a5c6a892475f", "head_after": null}, "ts": "2026-10-20T13:36:40.365762+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "p2", "status": "LANDED", "commit": "8d8fea3364c9ee21ea6a7d98729b87c8cf49ef1a"}, "ts": "2026-10-20T13:46:39.975960+00:00"}
+{"actor": "factory-tick", "tick": {"rung": "p2", "wake": "change", "resuming": true, "builder_exit": 0, "verify": "pass", "head_before": "8d8fea3364c9", "head_after": "fa3d95047ce8", "receipt": ".factory/receipts/p2_RECEIPT.md", "rung_status": "LANDED"}, "ts": "2026-10-20T13:49:33.828177+00:00"}
+{"actor": "operator", "rung_updated": {"rung": "p3", "status": "OPEN"}, "ts": "2026-10-20T13:49:51.769746+00:00"}
