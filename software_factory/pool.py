@@ -1,25 +1,30 @@
-"""factory pool — READ-ONLY multi-lane registry.
+"""factory pool — multi-lane registry + conflict-aware dispatch (p3).
 
 The factory's unit of parallelism is the lane, each in its own git worktree
-or watch_paths-scoped subtree under its own .factory/tick.lock. Before
-cross-lane conflict filtering (p2) or concurrent dispatch (p3), the operator
-and scheduler need a deterministic view of the whole pool. This module:
+or watch_paths-scoped subtree under its own .factory/tick.lock. This module:
 
 - discovers lanes: `git worktree list --porcelain` order, then .factory/
   config.json `pool.lanes`, then caller-supplied extra paths — deduped by
   resolved path, kept only when .factory/queue_state.json is a regular file;
-- inspects each lane without writing anything (queue_state.json, state.json,
-  config.json reads + `git rev-parse` + observer.observe());
+- inspects each lane (queue_state.json, state.json, config.json reads +
+  `git rev-parse` + observer.observe());
 - prints stable lines (same discipline as the observer: no timestamps) with
-  a trailing `lanes=N active=A parked=P` summary.
+  a trailing `lanes=N active=A parked=P` summary;
+- plans (plan_dispatch) and runs (dispatch) conflict-free lane ticks across
+  the pool: a lane whose head OPEN rung overlaps another active lane's
+  declared `files` is skipped (tick.py is kernel-frozen and would run the
+  conflicting head rung), while claimed IN_PROGRESS rungs are resumed
+  regardless. Dispatch runs tick.run_tick concurrently on a ThreadPoolExecutor
+  and relies on each lane's own .factory/tick.lock for mutual exclusion.
 
-Zero writes, ever. Stdlib only.
+Stdlib only.
 """
 
+import concurrent.futures
 import json
 from pathlib import Path
 
-from . import observer, queue_state
+from . import observer, queue_state, tick
 from .common import git, load_json
 
 #: A directory counts as a lane only if its queue is a REGULAR file
@@ -158,3 +163,142 @@ def run(repo, extra_paths=()) -> list:
     lines = findings(repo, extra_paths=extra_paths)
     print("\n".join(lines))
     return lines
+
+
+# ---------- p3: conflict-aware multi-lane parallel dispatch ----------
+
+def _lane_q(lane_repo):
+    return _load_json_or_none(queue_state.queue_path(lane_repo))
+
+
+def _lane_name(q, lane_repo) -> str:
+    if isinstance(q, dict) and isinstance(q.get("lane"), str) and q["lane"]:
+        return q["lane"]
+    return str(lane_repo)
+
+
+def plan_dispatch(repo, extra_paths=(), max_parallel=None) -> tuple:
+    """Select conflict-free rungs across the pool. Read-only.
+
+    Returns (selected, skipped): `selected` is a list of dicts
+    {lane, repo, rung, resuming, files} in pool order; `skipped` is a list
+    of `dispatch_skipped: <lane> reason=<why>` lines in pool order.
+
+    in_flight_files is seeded with the union of every lane's IN_PROGRESS
+    `files`, then extended as each lane is selected, so a single pass can
+    never double-book an overlapping touch surface. A claimed IN_PROGRESS
+    rung is resumed regardless of conflicts (it already owns its work). A
+    lane whose HEAD OPEN rung conflicts is skipped entirely: tick.py is
+    kernel-frozen and calls next_actionable(q) without in_flight_files, so
+    launching a tick there would run the conflicting rung.
+    """
+    lanes = discover(repo, extra_paths=extra_paths)
+    selected = []
+    skipped = []
+
+    in_flight = []
+    for lp in lanes:
+        q = _lane_q(lp)
+        if not isinstance(q, dict):
+            continue
+        for r in (q.get("rungs") or {}).values():
+            if isinstance(r, dict) and r.get("status") == "IN_PROGRESS":
+                in_flight.extend(r.get("files") or [])
+
+    for lp in lanes:
+        q = _lane_q(lp)
+        name = _lane_name(q, lp)
+        if not isinstance(q, dict):
+            skipped.append(f"dispatch_skipped: {name} reason=unreadable")
+            continue
+        st = _load_json_or_none(queue_state.factory_dir(lp) / "state.json")
+        if isinstance(st, dict) and st.get("parked"):
+            skipped.append(f"dispatch_skipped: {name} reason=parked")
+            continue
+
+        rungs = q.get("rungs") or {}
+        resume_rid = next(
+            (rid for rid, r in rungs.items()
+             if isinstance(r, dict) and r.get("status") == "IN_PROGRESS"
+             and r.get("claimed_by")),
+            None)
+        open_rids = [rid for rid, r in rungs.items()
+                     if isinstance(r, dict) and r.get("status") == "OPEN"]
+        if resume_rid is not None:
+            rid, resuming = resume_rid, True
+        elif open_rids:
+            rid, resuming = queue_state.next_actionable(
+                q, in_flight_files=in_flight)
+            if rid is None:
+                # every OPEN rung on this lane overlaps in-flight work
+                skipped.append(
+                    f"dispatch_skipped: {name} reason=file_conflict")
+                continue
+            if rid != open_rids[0]:
+                # head OPEN rung conflicts — run_tick (kernel-frozen) would
+                # still pick it; the lane waits until the conflict clears
+                skipped.append(
+                    f"dispatch_skipped: {name} reason=file_conflict")
+                continue
+        else:
+            continue  # idle lane: nothing OPEN, nothing claimed — silent
+
+        if max_parallel is not None and len(selected) >= max_parallel:
+            skipped.append(
+                f"dispatch_skipped: {name} reason=max_parallel")
+            continue
+        files = list((rungs[rid].get("files") or []))
+        in_flight.extend(files)  # same-pass lanes cannot double-book these
+        selected.append({"lane": name, "repo": lp, "rung": rid,
+                         "resuming": resuming, "files": files})
+    return selected, skipped
+
+
+def dispatch(repo, extra_paths=(), dry_run=False, max_parallel=None,
+             builder_timeout=None, verify_timeout=None) -> int:
+    """Plan, then run the selected lane ticks concurrently. Returns exit code.
+
+    dry_run prints `would_dispatch:` lines + `dispatched=0` and performs zero
+    writes. A real run dispatches tick.run_tick on a ThreadPoolExecutor (one
+    lane's .factory/tick.lock keeps lanes mutually exclusive), prints
+    `dispatched_lane:` lines in pool order + `dispatched=<N>`, and returns 0
+    only when every dispatched tick exited 0 (else the first non-zero code).
+    """
+    repo = Path(repo)
+    selected, skipped = plan_dispatch(repo, extra_paths=extra_paths,
+                                      max_parallel=max_parallel)
+    lines = list(skipped)
+
+    if dry_run:
+        for s in selected:
+            files = ",".join(s["files"]) if s["files"] else "none"
+            lines.append(
+                f"would_dispatch: {s['lane']} rung={s['rung']} files={files}")
+        lines.append("dispatched=0")
+        print("\n".join(lines))
+        return 0
+
+    results = {}
+    if selected:
+        with concurrent.futures.ThreadPoolExecutor(
+                max_workers=len(selected)) as ex:
+            futs = {
+                ex.submit(tick.run_tick, s["repo"],
+                          builder_timeout=builder_timeout,
+                          verify_timeout=verify_timeout): s
+                for s in selected
+            }
+            for fut, s in futs.items():
+                results[id(s)] = fut.result()
+
+    first_bad = 0
+    for s in selected:
+        code, msg = results[id(s)]
+        lines.append(
+            f"dispatched_lane: {s['lane']} rung={s['rung']} exit={code} "
+            f"msg={msg}")
+        if code != 0 and first_bad == 0:
+            first_bad = code
+    lines.append(f"dispatched={len(selected)}")
+    print("\n".join(lines))
+    return first_bad
