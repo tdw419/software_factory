@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import decision_log, queue_state
-from .common import (atomic_write_text, git, in_watch_scope,
+from .common import (atomic_write_text, git, in_watch_scope, load_json,
                      resolve_kernel_paths, resolve_ladder, resolve_watch_paths,
                      scoped_dirty_rows, sha12, touched_kernel_paths,
                      validate_receipt)
@@ -84,6 +84,12 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None,
                 cls = _classify_handle(repo, r.get("commit") or "")
                 lines.append(f"rung_{rid}_handle={cls}")
                 landed_commits.append((rid, (r.get("receipt") or "").strip()))
+            # p5: advisory difficulty label — emitted only when non-empty
+            # (absent/empty keeps the tuple byte-identical for legacy lanes)
+            diff = (r.get("difficulty") or "").strip() \
+                if isinstance(r.get("difficulty"), str) else ""
+            if diff:
+                lines.append(f"rung_{rid}_difficulty={diff}")
         missing = []
         incomplete = []
         for rid, rp in landed_commits:
@@ -200,6 +206,22 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None,
                          + ("STALL" if time.time() - mt > stale_secs else "OK"))
         except (OSError, ValueError):
             lines.append("tick_heartbeat=NO_RUNS")
+
+    # p5: builder tier label — a free-form config label (builder.tier in
+    # .factory/config.json), NOT a gate. Emitted immediately after the
+    # heartbeat line only when present and non-empty; absent/empty config
+    # keeps the tuple byte-identical (the r5/r7 contract).
+    tier = ""
+    try:
+        cfg = load_json(queue_state.factory_dir(repo) / "config.json")
+        if isinstance(cfg, dict):
+            t = (cfg.get("builder") or {}).get("tier")
+            if isinstance(t, str):
+                tier = t.strip()
+    except (OSError, ValueError):
+        tier = ""
+    if tier:
+        lines.append(f"builder={tier}")
 
     return lines
 

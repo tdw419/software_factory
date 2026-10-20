@@ -132,6 +132,20 @@ def inspect_lane(lane_repo) -> dict:
             heartbeat = ln.split("=", 1)[1]
             break
 
+    # p5: trust-calibration metadata. difficulty = the active/head rung's
+    # advisory label; builder_tier = the lane's free-form builder.tier config
+    # label. Both None when unset (findings omits the tokens — byte-stable).
+    difficulty = None
+    if rid is not None and isinstance(rungs.get(rid), dict):
+        d = rungs[rid].get("difficulty")
+        if isinstance(d, str) and d.strip():
+            difficulty = d.strip()
+    builder_tier = None
+    if isinstance(cfg, dict):
+        t = (cfg.get("builder") or {}).get("tier")
+        if isinstance(t, str) and t.strip():
+            builder_tier = t.strip()
+
     return {
         "lane": lane,
         "worktree": str(lane_repo.resolve()),
@@ -139,6 +153,8 @@ def inspect_lane(lane_repo) -> dict:
         "state": state,
         "active_rung": active_rung,
         "heartbeat": heartbeat,
+        "difficulty": difficulty,
+        "builder_tier": builder_tier,
     }
 
 
@@ -149,10 +165,17 @@ def findings(repo, extra_paths=()) -> list:
     for lp in discover(repo, extra_paths=extra_paths):
         info = inspect_lane(lp)
         states.append(info["state"])
-        lines.append(
-            f"lane: {info['lane']} state={info['state']}"
-            f" active={info['active_rung']} heartbeat={info['heartbeat']}"
-            f" branch={info['branch']} worktree={info['worktree']}")
+        # p5: difficulty rides after active=, tier after heartbeat=; both
+        # tokens omitted when unset so pre-p5 output stays byte-identical
+        line = (f"lane: {info['lane']} state={info['state']}"
+                f" active={info['active_rung']}")
+        if info.get("difficulty"):
+            line += f" difficulty={info['difficulty']}"
+        line += f" heartbeat={info['heartbeat']}"
+        if info.get("builder_tier"):
+            line += f" tier={info['builder_tier']}"
+        line += f" branch={info['branch']} worktree={info['worktree']}"
+        lines.append(line)
     active = sum(1 for s in states if s in ("IN_PROGRESS", "OPEN"))
     parked = sum(1 for s in states if s == "PARKED")
     lines.append(f"lanes={len(states)} active={active} parked={parked}")

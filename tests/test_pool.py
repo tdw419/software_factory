@@ -125,8 +125,12 @@ def test_state_classification_and_active_rung(repo):
     assert lanes["corruptl"]["state"] == "IDLE"      # no readable rungs -> IDLE
     for name, info in lanes.items():
         assert info["worktree"] == str((repo.parent / name).resolve())
+        # p5: difficulty + builder_tier are always present (None when unset)
         assert set(info) == {"lane", "worktree", "branch", "state",
-                             "active_rung", "heartbeat"}
+                             "active_rung", "heartbeat",
+                             "difficulty", "builder_tier"}
+    assert lanes["idle"]["difficulty"] is None
+    assert lanes["idle"]["builder_tier"] is None
 
 
 def test_branch_readout(repo):
@@ -395,9 +399,7 @@ def test_pool_via_python_dash_m(repo, capsys):
 # ---------- p5: difficulty + builder_tier in the pool readout ----------
 
 def test_inspect_lane_difficulty_and_builder_tier(repo):
-    cfg = json.loads((repo / ".factory" / "config.json").read_text())
-    cfg["builder"]["tier"] = "local"
-    (repo / ".factory" / "config.json").write_text(json.dumps(cfg))
+    init_lane(repo)
     tiered = _plain_lane(repo, "tiered", queue={
         "lane": "tiered", "rules": [],
         "rungs": {**_rung("q1", "OPEN"), **_rung("q0", "LANDED")}})
@@ -405,6 +407,11 @@ def test_inspect_lane_difficulty_and_builder_tier(repo):
     qq = json.loads(qp.read_text())
     qq["rungs"]["q1"]["difficulty"] = "mechanical"
     qp.write_text(json.dumps(qq))
+    # tier is a per-lane config label: lane3's own config.json, not the repo's
+    lcfgp = tiered / ".factory" / "config.json"
+    lcfg = json.loads(lcfgp.read_text())
+    lcfg["builder"] = {"tier": "local"}
+    lcfgp.write_text(json.dumps(lcfg))
     plain = _plain_lane(repo, "plainl", queue={
         "lane": "plainl", "rules": [], "rungs": _rung("q2", "OPEN")})
 
@@ -413,7 +420,7 @@ def test_inspect_lane_difficulty_and_builder_tier(repo):
     assert ti["builder_tier"] == "local"
     pi = pool.inspect_lane(plain)
     assert pi["difficulty"] is None
-    assert pi["builder_tier"] is None             # repo lane has no tier
+    assert pi["builder_tier"] is None             # no tier configured
 
 
 def test_findings_tokens_omitted_when_unset(repo):
@@ -425,9 +432,13 @@ def test_findings_tokens_omitted_when_unset(repo):
     qq = json.loads(qp.read_text())
     qq["rungs"]["q1"]["difficulty"] = "fuzzy"
     qp.write_text(json.dumps(qq))
+    # tier is a per-lane config label: lane3's own config.json, not the repo's
+    lcfgp = tiered / ".factory" / "config.json"
+    lcfg = json.loads(lcfgp.read_text())
+    lcfg["builder"] = {"tier": "cloud"}
+    lcfgp.write_text(json.dumps(lcfg))
     cfgp = repo / ".factory" / "config.json"
     cfg = json.loads(cfgp.read_text())
-    cfg["builder"]["tier"] = "cloud"
     cfg["pool"] = {"lanes": ["../lane3"]}
     cfgp.write_text(json.dumps(cfg))
 
