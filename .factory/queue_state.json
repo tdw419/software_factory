@@ -148,15 +148,15 @@
       "commit": "6d2086bcaa443ffa937190b1e8964a0328ae0d87"
     },
     "fp1": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "templates/PARALLEL_POOL_WALKTHROUGH.md multi-lane operator walkthrough",
       "ticket": ".factory/tickets/fp1_parallel_pool_walkthrough.md",
       "receipt": ".factory/receipts/fp1_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-20T16:23:10.788146+00:00",
       "claimed_at": "2026-10-20T16:23:48.707318+00:00",
-      "landed_at": null,
-      "commit": null,
+      "landed_at": "2026-10-20T16:32:29.297733+00:00",
+      "commit": "e59a7f683ebf20b213f0f5d6b33e3ac8ee1b5dca",
       "files": [
         "templates/*"
       ]

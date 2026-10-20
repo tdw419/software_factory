@@ -45,6 +45,6 @@ untouched.
 
 ### v0.9.0 field pilot — seeded by operator 2026-10-20
 
-- Rung fp1 [IN_PROGRESS]: `templates/PARALLEL_POOL_WALKTHROUGH.md` multi-lane operator walkthrough (`.factory/tickets/fp1_parallel_pool_walkthrough.md`)
+- Rung fp1 [LANDED] (e59a7f6): `templates/PARALLEL_POOL_WALKTHROUGH.md` multi-lane operator walkthrough (`.factory/tickets/fp1_parallel_pool_walkthrough.md`)
 
 
