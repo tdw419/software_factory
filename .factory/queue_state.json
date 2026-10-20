@@ -126,13 +126,13 @@
       "commit": "1ea1db8cb2ffb2f6822bc952d2c9db1274002c50"
     },
     "p2": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "rung conflict metadata (--files) + symmetric overlap filter",
       "ticket": ".factory/tickets/p2_conflict_files.md",
       "receipt": ".factory/receipts/p2_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-20T12:45:09.672452+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-20T13:17:18.109195+00:00",
       "landed_at": null,
       "commit": null
     },
