@@ -126,7 +126,8 @@ def next_actionable(q: dict, in_flight_files=()):
 
 
 def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
-                claimed_by=None, title=None, covers=None, files=None):
+                claimed_by=None, title=None, covers=None, files=None,
+                difficulty=None):
     """Update lifecycle fields of an existing rung. Returns (rung, changes).
 
     Validated here so the operator CLI can never write a queue the tick or
@@ -181,6 +182,16 @@ def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
         if files != list(r.get("files") or []):
             r["files"] = files
             changes["files"] = files
+    if difficulty is not None:
+        # p5: free-form advisory label, stripped; whitespace-only clears it
+        # (changes report None so the decision_log payload shows the clear)
+        difficulty = difficulty.strip()
+        if difficulty != (r.get("difficulty") or ""):
+            if difficulty:
+                r["difficulty"] = difficulty
+            else:
+                r.pop("difficulty", None)
+            changes["difficulty"] = difficulty or None
     return r, changes
 
 
@@ -209,7 +220,8 @@ def validate_ticket(path) -> list:
 
 def register_rung(q: dict, rid: str, title: str, ticket: str,
                   receipt: str = "", status: str = "OPEN",
-                  covers=None, origin=None, files=None) -> None:
+                  covers=None, origin=None, files=None,
+                  difficulty=None) -> None:
     if rid in q["rungs"]:
         raise QueueError(f"rung '{rid}' already exists")
     if status not in STATUSES:
@@ -234,4 +246,9 @@ def register_rung(q: dict, rid: str, title: str, ticket: str,
         if not all(isinstance(f, str) and f.strip() for f in files):
             raise QueueError("files must be a list of non-empty path/glob strings")
         entry["files"] = files
+    if difficulty is not None:
+        # p5: free-form advisory label; stored only when non-empty after strip
+        difficulty = difficulty.strip()
+        if difficulty:
+            entry["difficulty"] = difficulty
     q["rungs"][rid] = entry

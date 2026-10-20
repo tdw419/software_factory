@@ -129,8 +129,16 @@ def cmd_ticket(args):
                                   str(p.relative_to(repo)) if p.is_relative_to(repo) else str(p),
                                   receipt=args.receipt or f".factory/receipts/{args.id}_RECEIPT.md",
                                   status=args.status, covers=_covers_list(args.covers),
-                                  files=_covers_list(args.files))
+                                  files=_covers_list(args.files),
+                                  difficulty=args.difficulty)
         queue_state.save(repo, q)
+        # p5: difficulty registrations are decision-log visible (rung_registered)
+        if args.difficulty and args.difficulty.strip():
+            decision_log.append(repo, {
+                "actor": "operator",
+                "rung_registered": {"rung": args.id,
+                                    "difficulty": args.difficulty.strip()},
+            })
         print(f"registered rung {args.id} ({args.status}): {args.title}")
         return 0
     if args.sub == "set":
@@ -139,7 +147,8 @@ def cmd_ticket(args):
             _, changes = queue_state.update_rung(
                 q, args.id, status=args.status, commit=args.commit,
                 receipt=args.receipt, claimed_by=args.claimed_by, title=args.title,
-                covers=_covers_list(args.covers), files=_covers_list(args.files))
+                covers=_covers_list(args.covers), files=_covers_list(args.files),
+                difficulty=args.difficulty)
         except queue_state.QueueError as e:
             print(f"ticket set: {e}")
             return 1
@@ -329,6 +338,8 @@ def build_parser():
                      help="comma-separated signature list (covers: [...] dedup)")
     sp2.add_argument("--files", default=None,
                      help="comma-separated expected-touch paths/globs (conflict metadata)")
+    sp2.add_argument("--difficulty", default=None,
+                     help="free-form advisory difficulty label (e.g. mechanical/fuzzy)")
     sp2.set_defaults(fn=cmd_ticket)
     sp3 = tsub.add_parser("validate")
     sp3.add_argument("ticket")
@@ -345,6 +356,8 @@ def build_parser():
                      help="comma-separated signature list (covers: [...] dedup)")
     sp4.add_argument("--files", default=None,
                      help="comma-separated expected-touch paths/globs (conflict metadata)")
+    sp4.add_argument("--difficulty", default=None,
+                     help="free-form advisory difficulty label (whitespace clears)")
     sp4.set_defaults(fn=cmd_ticket)
 
     sp = sub.add_parser("receipt", help="validate receipts")
