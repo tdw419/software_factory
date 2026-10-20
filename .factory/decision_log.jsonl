@@ -51,3 +51,4 @@
 {"actor": "operator", "rung_updated": {"rung": "p3", "status": "OPEN"}, "ts": "2026-10-20T13:49:51.769746+00:00"}
 {"actor": "operator", "rung_updated": {"rung": "p3", "status": "IN_PROGRESS", "claimed_by": "hermes-cli"}, "ts": "2026-10-20T13:57:55.995693+00:00"}
 {"actor": "factory-tick", "tick_failed": {"rung": "p3", "problem": "builder TIMEOUT after 1500s", "verify": null, "transient": true, "head_before": "875e816781de", "head_after": null}, "ts": "2026-10-20T14:15:03.603111+00:00"}
+{"actor": "operator", "rung_updated": {"rung": "p3", "status": "LANDED", "commit": "6d2086bcaa443ffa937190b1e8964a0328ae0d87"}, "ts": "2026-10-20T14:28:43.706968+00:00"}

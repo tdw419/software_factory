@@ -137,15 +137,15 @@
       "commit": "8d8fea3364c9ee21ea6a7d98729b87c8cf49ef1a"
     },
     "p3": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "factory dispatch conflict-aware multi-lane parallel scheduler",
       "ticket": ".factory/tickets/p3_parallel_dispatch.md",
       "receipt": ".factory/receipts/p3_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-20T12:45:09.706580+00:00",
       "claimed_at": "2026-10-20T13:57:55.994221+00:00",
-      "landed_at": null,
-      "commit": null
+      "landed_at": "2026-10-20T14:28:43.697695+00:00",
+      "commit": "6d2086bcaa443ffa937190b1e8964a0328ae0d87"
     }
   },
   "infra_notes": [
