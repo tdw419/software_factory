@@ -24,6 +24,7 @@ from .common import (atomic_write_text, git, in_watch_scope,
                      resolve_kernel_paths, resolve_ladder, resolve_watch_paths,
                      scoped_dirty_rows, sha12, touched_kernel_paths,
                      validate_receipt)
+from .diagnose import COVERING_STATUSES
 
 
 def _classify_handle(repo, handle: str) -> str:
@@ -93,6 +94,15 @@ def observe(repo, stale_secs=5400, watch_rules=(), churn_allowlist=None,
         lines.append("receipts_missing=" + (",".join(missing) if missing else "none"))
         if incomplete:
             lines.append("receipts_incomplete=" + ",".join(incomplete))
+
+        # self-drafted rung population: the EXACT predicate diagnose.py's
+        # max_active_drafts breaker counts (origin="self", status in
+        # COVERING_STATUSES), so the observer readout and the breaker can
+        # never silently disagree. Emitted unconditionally — a legacy lane
+        # with no origin fields reads self_drafts=0, never an absent line.
+        lines.append("self_drafts=%d" % sum(
+            1 for r in q.get("rungs", {}).values()
+            if r.get("origin") == "self" and r.get("status") in COVERING_STATUSES))
 
         # ladder drift: rung statuses in the ROADMAP/ladder file vs queue_state.
         # Only compare rungs present in BOTH; unconfigured or missing ladder

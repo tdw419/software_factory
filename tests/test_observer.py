@@ -62,8 +62,8 @@ def test_self_drafts_counts_only_active_self_origin_rungs(repo):
     assert d["self_drafts"] == "2"
     # placement contract: immediately after the receipts block, so a human
     # scanning the cron readout reads it as the next line after receipts
-    assert lines.index("self_drafts=2") == \
-        lines.index("receipts_missing=none") + 1
+    ri = next(i for i, ln in enumerate(lines) if ln.startswith("receipts_missing="))
+    assert lines.index("self_drafts=2") == ri + 1
 
 
 def test_self_drafts_legacy_lane_reports_zero(repo):
