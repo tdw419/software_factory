@@ -51,9 +51,13 @@ def _rung(rid, status, claimed_by=None):
 
 
 def _snapshot(root):
-    """(path, type, mtime_ns, size) for every file AND directory under root."""
+    """(path, mtime_ns, size) for every file AND directory under root,
+    excluding git's own internals: `git status` opportunistically refreshes
+    the .git/index stat cache, which is git-native behavior, not a factory
+    write. Everything the factory owns (working tree + .factory/) is covered."""
     out = {}
     for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
         for n in dirnames + filenames:
             p = Path(dirpath) / n
             st = p.stat()
@@ -97,7 +101,7 @@ def test_state_classification_and_active_rung(repo):
         "lane": "openl", "rules": [], "rungs": {**_rung("p9", "OPEN"),
                                                 **_rung("p8", "LANDED")}})
     inprog = _plain_lane(repo, "inprogl", queue={
-        "lane": "inprogl", "rules": [], "rungs": {**_rung("p7", "OPEN"),
+        "lane": "inprogl", "rules": [], "rungs": {**_rung("p7", "LANDED"),
                                                   **_rung("p6", "IN_PROGRESS",
                                                           claimed_by="hermes-cli")}})
     parked = _plain_lane(repo, "parkedl", queue={
@@ -167,6 +171,10 @@ def test_findings_lines_and_summary(repo):
     init_lane(repo)
     _plain_lane(repo, "lane3", queue={
         "lane": "lane3", "rules": [], "rungs": _rung("q1", "OPEN")})
+    cfgp = repo / ".factory" / "config.json"
+    cfg = json.loads(cfgp.read_text())
+    cfg["pool"] = {"lanes": ["../lane3"]}
+    cfgp.write_text(json.dumps(cfg))
     lines = pool.findings(repo)
     lane_lines = [l for l in lines if l.startswith("lane: ")]
     assert len(lane_lines) == 2
@@ -190,7 +198,7 @@ def test_zero_write_and_cli(repo, capsys):
     assert _snapshot(repo.parent) == before      # ZERO writes, incl. mtimes
     out = capsys.readouterr().out
     body = [l for l in out.splitlines() if l.startswith("lane: ")]
-    assert len(body) == 4                        # 2 lanes x 2 invocations
+    assert len(body) == 3                        # 1st call: main only; 2nd: +lane3
     assert any("state=PARKED" in l for l in body)
     summaries = [l for l in out.splitlines() if l.startswith("lanes=")]
     assert summaries[-1] == "lanes=2 active=0 parked=1"
@@ -198,10 +206,11 @@ def test_zero_write_and_cli(repo, capsys):
 
 def test_pool_via_python_dash_m(repo, capsys):
     init_lane(repo)
+    env = dict(os.environ, PYTHONPATH=str(Path(__file__).resolve().parents[1]))
     r = subprocess.run(
         ["/usr/bin/python3.12", "-m", "software_factory.cli",
          "--repo", str(repo), "pool"],
-        capture_output=True, text=True, cwd=str(repo.parent))
+        capture_output=True, text=True, cwd=str(repo.parent), env=env)
     assert r.returncode == 0, r.stderr
     assert r.stdout.startswith("lane: ")
     assert "lanes=" in r.stdout

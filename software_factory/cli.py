@@ -9,7 +9,7 @@ if __package__ in (None, ""):  # direct-file run: python3 .../cli.py --help
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     __package__ = "software_factory"
 
-from . import __version__, decision_log, diagnose, digest, gate, human_gate, observer, queue_state, tick
+from . import __version__, decision_log, diagnose, digest, gate, human_gate, observer, pool, queue_state, tick
 from .common import (atomic_write_text, dump_json, git, now_iso,
                      validate_receipt)
 from .templates import (DEFAULT_CONFIG, OBSERVER_PROMPT_TEMPLATE, PROMPT_TEMPLATE,
@@ -255,6 +255,13 @@ def cmd_ask(args):
     return 2
 
 
+def cmd_pool(args):
+    repo = _repo(args)
+    extra = _covers_list(getattr(args, "paths", None)) or ()
+    pool.run(repo, extra_paths=extra)
+    return 0
+
+
 def cmd_observe(args):
     repo = _repo(args)
     cfg = _load_cfg_or_none(repo)
@@ -387,6 +394,12 @@ def build_parser():
     sp4.add_argument("--answer", required=True)
     sp4.add_argument("--actor", default="operator")
     sp4.set_defaults(fn=cmd_ask)
+
+    sp = sub.add_parser("pool",
+                        help="read-only registry of every lane in the pool")
+    sp.add_argument("--paths", default=None,
+                    help="comma-separated extra lane paths (repo-relative ok)")
+    sp.set_defaults(fn=cmd_pool)
 
     sp = sub.add_parser("observe", help="mechanical second-checker (stable output)")
     sp.add_argument("--log-dir", default=None)
