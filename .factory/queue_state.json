@@ -126,15 +126,15 @@
       "commit": "1ea1db8cb2ffb2f6822bc952d2c9db1274002c50"
     },
     "p2": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "rung conflict metadata (--files) + symmetric overlap filter",
       "ticket": ".factory/tickets/p2_conflict_files.md",
       "receipt": ".factory/receipts/p2_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-20T12:45:09.672452+00:00",
       "claimed_at": "2026-10-20T13:17:18.109195+00:00",
-      "landed_at": null,
-      "commit": null
+      "landed_at": "2026-10-20T13:46:39.973904+00:00",
+      "commit": "8d8fea3364c9ee21ea6a7d98729b87c8cf49ef1a"
     },
     "p3": {
       "status": "DRAFT",
