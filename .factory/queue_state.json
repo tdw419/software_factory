@@ -162,7 +162,7 @@
       ]
     },
     "p5": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "builder tier label + ticket difficulty field",
       "ticket": ".factory/tickets/p5_local_builder_difficulty.md",
       "receipt": ".factory/receipts/p5_RECEIPT.md",
@@ -170,7 +170,16 @@
       "opened": "2026-10-20T22:36:59.478984+00:00",
       "claimed_at": null,
       "landed_at": null,
-      "commit": null
+      "commit": null,
+      "files": [
+        "software_factory/observer.py",
+        "software_factory/queue_state.py",
+        "software_factory/cli.py",
+        "software_factory/pool.py",
+        "templates/HERMES_CRON_WIRING.md",
+        "README.md",
+        "tests/*"
+      ]
     }
   },
   "infra_notes": [
