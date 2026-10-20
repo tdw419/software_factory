@@ -163,3 +163,25 @@ def test_cli_ask_answer_flow(repo, capsys):
                  "--answer", "   "]) == 1
     assert "status: PENDING" in p3.read_text(encoding="utf-8")
     assert p3.name in [Path(p).name for p in human_gate.pending(repo)]
+
+
+def test_cli_ticket_difficulty_flag_and_decision_log(repo):
+    from software_factory import decision_log
+    init_lane(repo)
+    t = repo / ".factory" / "tickets" / "t7.md"
+    t.write_text("# TICKET — t7\n## Goal\ng\n## Stages\ns\n## Constraints\nc\n")
+    assert main(["--repo", str(repo), "ticket", "add", "--id", "t7",
+                 "--title", "seven", "--ticket", ".factory/tickets/t7.md",
+                 "--difficulty", "  mechanical "]) == 0
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    assert q["rungs"]["t7"]["difficulty"] == "mechanical"
+    assert any("rung_registered" in rec
+               and rec["rung_registered"].get("difficulty") == "mechanical"
+               for rec in decision_log.read_all(repo))
+    assert main(["--repo", str(repo), "ticket", "set", "t7",
+                 "--difficulty", "fuzzy"]) == 0
+    q = json.loads((repo / ".factory" / "queue_state.json").read_text())
+    assert q["rungs"]["t7"]["difficulty"] == "fuzzy"
+    assert any("rung_updated" in rec
+               and rec["rung_updated"].get("difficulty") == "fuzzy"
+               for rec in decision_log.read_all(repo))

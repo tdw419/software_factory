@@ -439,3 +439,55 @@ def test_observer_surfaces_kernel_guard_violation_and_authorization(repo):
     gate.fire(repo, "GO kernel — app.py")
     d2 = dict(ln.split("=", 1) for ln in observer.observe(repo))
     assert d2["kernel_guard"] == "AUTHORIZED(app.py)"
+
+
+# ---------- p5: builder.tier + rung difficulty visibility ----------
+
+def _set_builder_tier(repo, tier):
+    cfg_p = repo / ".factory" / "config.json"
+    cfg = json.loads(cfg_p.read_text())
+    cfg["builder"]["tier"] = tier
+    cfg_p.write_text(json.dumps(cfg, indent=2))
+
+
+def test_builder_tier_emitted_after_heartbeat(repo):
+    # p5: builder.tier is a free-form label; when present and non-empty the
+    # observer surfaces it immediately after tick_heartbeat
+    healthy_lane(repo)
+    _set_builder_tier(repo, "local")
+    lines = observer.observe(repo)
+    hi = next(i for i, ln in enumerate(lines) if ln.startswith("tick_heartbeat="))
+    assert lines[hi + 1] == "builder=local"
+
+
+def test_builder_tier_absent_or_empty_byte_stable(repo):
+    # r5/r7 contract: no tier config (or empty/whitespace) -> NO builder= line
+    healthy_lane(repo)
+    lines = observer.observe(repo)
+    assert not any(ln.startswith("builder=") for ln in lines)
+    _set_builder_tier(repo, "   ")
+    lines = observer.observe(repo)
+    assert not any(ln.startswith("builder=") for ln in lines)
+
+
+def test_rung_difficulty_emitted_after_status_lines(repo):
+    # difficulty on an OPEN rung: rung_<rid>_difficulty right after status;
+    # on a LANDED rung: after status AND handle
+    healthy_lane(repo)
+    q = queue_state.load(repo)
+    queue_state.update_rung(q, "t1", difficulty="mechanical")
+    queue_state.register_rung(q, "d1", "next", ".factory/tickets/d1.md",
+                              difficulty="fuzzy")
+    queue_state.save(repo, q)
+    lines = observer.observe(repo)
+    si = lines.index("rung_t1_status=LANDED")
+    assert lines[si + 1] == "rung_t1_handle=RESOLVED"
+    assert lines[si + 2] == "rung_t1_difficulty=mechanical"
+    di = lines.index("rung_d1_status=OPEN")
+    assert lines[di + 1] == "rung_d1_difficulty=fuzzy"
+
+
+def test_rung_difficulty_absent_byte_stable(repo):
+    healthy_lane(repo)
+    lines = observer.observe(repo)
+    assert not any("_difficulty=" in ln for ln in lines)

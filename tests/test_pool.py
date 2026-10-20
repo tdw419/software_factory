@@ -390,3 +390,52 @@ def test_pool_via_python_dash_m(repo, capsys):
     assert r.returncode == 0, r.stderr
     assert r.stdout.startswith("lane: ")
     assert "lanes=" in r.stdout
+
+
+# ---------- p5: difficulty + builder_tier in the pool readout ----------
+
+def test_inspect_lane_difficulty_and_builder_tier(repo):
+    cfg = json.loads((repo / ".factory" / "config.json").read_text())
+    cfg["builder"]["tier"] = "local"
+    (repo / ".factory" / "config.json").write_text(json.dumps(cfg))
+    tiered = _plain_lane(repo, "tiered", queue={
+        "lane": "tiered", "rules": [],
+        "rungs": {**_rung("q1", "OPEN"), **_rung("q0", "LANDED")}})
+    qp = tiered / ".factory" / "queue_state.json"
+    qq = json.loads(qp.read_text())
+    qq["rungs"]["q1"]["difficulty"] = "mechanical"
+    qp.write_text(json.dumps(qq))
+    plain = _plain_lane(repo, "plainl", queue={
+        "lane": "plainl", "rules": [], "rungs": _rung("q2", "OPEN")})
+
+    ti = pool.inspect_lane(tiered)
+    assert ti["difficulty"] == "mechanical"       # the active/head rung's
+    assert ti["builder_tier"] == "local"
+    pi = pool.inspect_lane(plain)
+    assert pi["difficulty"] is None
+    assert pi["builder_tier"] is None             # repo lane has no tier
+
+
+def test_findings_tokens_omitted_when_unset(repo):
+    # byte-stability: lanes without difficulty/tier keep the pre-p5 line
+    init_lane(repo)
+    tiered = _plain_lane(repo, "lane3", queue={
+        "lane": "lane3", "rules": [], "rungs": _rung("q1", "OPEN")})
+    qp = tiered / ".factory" / "queue_state.json"
+    qq = json.loads(qp.read_text())
+    qq["rungs"]["q1"]["difficulty"] = "fuzzy"
+    qp.write_text(json.dumps(qq))
+    cfgp = repo / ".factory" / "config.json"
+    cfg = json.loads(cfgp.read_text())
+    cfg["builder"]["tier"] = "cloud"
+    cfg["pool"] = {"lanes": ["../lane3"]}
+    cfgp.write_text(json.dumps(cfg))
+
+    lines = pool.findings(repo)
+    tiered_line = next(l for l in lines if l.startswith("lane: lane3 "))
+    assert " active=q1 difficulty=fuzzy " in tiered_line
+    assert " tier=cloud " in tiered_line
+    main_line = next(l for l in lines if l.startswith("lane: lane state="))
+    assert " difficulty=" not in main_line
+    assert " tier=" not in main_line
+    assert main_line.split(" heartbeat=")[0].endswith("active=none")

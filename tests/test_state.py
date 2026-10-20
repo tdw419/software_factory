@@ -75,3 +75,34 @@ def test_register_dup_refused(repo):
         assert False, "expected QueueError"
     except queue_state.QueueError:
         pass
+
+
+# ---------- p5: difficulty metadata on rungs ----------
+
+def test_register_rung_stores_stripped_nonempty_difficulty(repo):
+    init_lane(repo)
+    q = queue_state.load(repo)
+    queue_state.register_rung(q, "r1", "one", "t.md", difficulty="  mechanical  ")
+    assert q["rungs"]["r1"]["difficulty"] == "mechanical"
+
+
+def test_register_rung_empty_or_missing_difficulty_not_stored(repo):
+    init_lane(repo)
+    q = queue_state.load(repo)
+    queue_state.register_rung(q, "r1", "one", "t.md", difficulty="   ")
+    queue_state.register_rung(q, "r2", "two", "t.md")
+    assert "difficulty" not in q["rungs"]["r1"]
+    assert "difficulty" not in q["rungs"]["r2"]
+
+
+def test_update_rung_difficulty_set_and_clear(repo):
+    init_lane(repo)
+    q = queue_state.load(repo)
+    queue_state.register_rung(q, "r1", "one", "t.md")
+    _, changes = queue_state.update_rung(q, "r1", difficulty="mechanical")
+    assert q["rungs"]["r1"]["difficulty"] == "mechanical"
+    assert changes["difficulty"] == "mechanical"
+    # whitespace-only clears the field
+    _, changes = queue_state.update_rung(q, "r1", difficulty="  ")
+    assert "difficulty" not in q["rungs"]["r1"]
+    assert changes["difficulty"] is None
