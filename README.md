@@ -217,6 +217,37 @@ uses three primitives without touching the single-lane kernel (`tick.py` /
   non-conflicting lanes reserve their `files` into the running union (up to
   `--max-parallel N`) and execute `run_tick` concurrently across separate
   worktrees via `ThreadPoolExecutor`.
+- **Builder tier + difficulty metadata (p5)**: trust-calibration labels,
+  not gates. Set `builder.tier` in a lane's `.factory/config.json`
+  (free-form string, e.g. `"cloud"` or `"local"`) and it appears in the
+  observer tuple (`builder=<tier>`, right after `tick_heartbeat`) and in
+  `factory pool` output (`tier=<...>`). Tag rungs with an advisory
+  difficulty via `factory ticket add/set --difficulty <value>` (free-form,
+  e.g. `mechanical` / `fuzzy`); the observer emits
+  `rung_<id>_difficulty=<d>` and pool output shows `difficulty=<d>` for
+  the active rung. All of these tokens are omitted when unset, so
+  lanes that don't opt in keep byte-identical output.
+
+### Choosing a builder tier (operator guidance, validated by the fp1/fp2 pilot)
+
+The fleet pilot measured 92.4–95.0% of tick wall-clock in builder
+execution vs 5.0–7.6% in verify (`48.37s / 633.62s` fp1, `47.71s / 962.29s`
+fp2) — throughput comes from more concurrent builders, and any CLI works
+as one: `adapters.run_shell` executes whatever `builder.cmd` points at,
+so a local model (e.g. `ollama run qwen2.5-coder`) needs only config:
+
+    # .factory/config.json on a local-builder lane
+    "builder": { "adapter": "shell", "cmd": "ollama run qwen2.5-coder --prompt-file {prompt}", "tier": "local" }
+
+Routing stays a human supply decision (which lane you open the rung in):
+- **Mechanical rungs** — test legs, doc rungs, benchmark harnesses, receipt
+  bookkeeping — are candidates for a `builder.tier: "local"` lane: narrow
+  scope, machine-checkable verify, cheap to retry.
+- **Fuzzy-scope rungs** — architecture, API design, anything where the
+  verify gate can't fully pin down the spec — stay on cloud builders.
+- A local builder has NOT yet passed this product's verify gate + rule-0
+  claim discipline on a real rung; treat `tier: "local"` lanes as
+  lower-trust until a live trial lands with its own receipt.
 
 ### Human gate (ASKs)
 
