@@ -8,7 +8,8 @@ product nests them under "rungs" so rung ids are data, not schema.
 
 from pathlib import Path
 
-from .common import dump_json, factory_dir, load_json, now_iso
+from .common import (_strip_dot_slash, dump_json, factory_dir, is_under_allowlist,
+                     load_json, now_iso)
 
 STATUSES = ("DRAFT", "OPEN", "IN_PROGRESS", "LANDED", "BLOCKED")
 
@@ -78,11 +79,46 @@ def save(repo, q: dict) -> None:
     dump_json(queue_path(repo), q)
 
 
-def next_actionable(q: dict):
+def files_overlap(files_a, files_b) -> bool:
+    """Symmetric expected-touch overlap between two `files` lists (p2).
+
+    Empty/None on either side means "no declared touch surface" — never a
+    conflict (an undeclared rung can't be filtered on paths it didn't claim).
+    Each entry is normalized with r6's _strip_dot_slash + trailing-slash strip,
+    then compared symmetrically through is_under_allowlist's exact/dir-prefix
+    and fnmatch glob matcher, so argument order can never change the answer:
+    "software_factory" vs "software_factory/observer.py" conflict both ways,
+    while "foo" vs "foobar.py" never false-conflict (path-boundary).
+    """
+    if not files_a or not files_b:
+        return False
+    na = [_strip_dot_slash(p.strip()).rstrip("/") for p in files_a]
+    nb = [_strip_dot_slash(p.strip()).rstrip("/") for p in files_b]
+    for a in na:
+        if not a:
+            continue
+        for b in nb:
+            if not b:
+                continue
+            if a == b or is_under_allowlist(a, [b]) or is_under_allowlist(b, [a]):
+                return True
+    return False
+
+
+def next_actionable(q: dict, in_flight_files=()):
     """Return (rung_id, resuming) for the first OPEN (or claimed IN_PROGRESS)
-    rung in insertion order, or (None, False)."""
+    rung in insertion order, or (None, False).
+
+    in_flight_files (p2) is the other lanes' expected-touch paths: an OPEN
+    rung whose `files` overlap is skipped so a non-conflicting rung can run
+    concurrently. Default () preserves the single-lane call exactly: no
+    in-flight files, no skipping. A claimed IN_PROGRESS rung is NEVER skipped
+    — it already owns its in-flight work (resuming=True).
+    """
     for rid, r in q.get("rungs", {}).items():
         if r.get("status") == "OPEN":
+            if in_flight_files and files_overlap(r.get("files"), in_flight_files):
+                continue
             return rid, False
         if r.get("status") == "IN_PROGRESS" and r.get("claimed_by"):
             return rid, True
@@ -90,7 +126,7 @@ def next_actionable(q: dict):
 
 
 def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
-                claimed_by=None, title=None, covers=None):
+                claimed_by=None, title=None, covers=None, files=None):
     """Update lifecycle fields of an existing rung. Returns (rung, changes).
 
     Validated here so the operator CLI can never write a queue the tick or
@@ -138,6 +174,13 @@ def update_rung(q: dict, rid: str, status=None, commit=None, receipt=None,
         if covers != list(r.get("covers") or []):
             r["covers"] = covers
             changes["covers"] = covers
+    if files is not None:
+        files = list(files)
+        if not all(isinstance(f, str) and f.strip() for f in files):
+            raise QueueError("files must be a list of non-empty path/glob strings")
+        if files != list(r.get("files") or []):
+            r["files"] = files
+            changes["files"] = files
     return r, changes
 
 
@@ -166,7 +209,7 @@ def validate_ticket(path) -> list:
 
 def register_rung(q: dict, rid: str, title: str, ticket: str,
                   receipt: str = "", status: str = "OPEN",
-                  covers=None, origin=None) -> None:
+                  covers=None, origin=None, files=None) -> None:
     if rid in q["rungs"]:
         raise QueueError(f"rung '{rid}' already exists")
     if status not in STATUSES:
@@ -186,4 +229,9 @@ def register_rung(q: dict, rid: str, title: str, ticket: str,
         entry["covers"] = list(covers)
     if origin is not None:
         entry["origin"] = origin
+    if files is not None:
+        files = list(files)
+        if not all(isinstance(f, str) and f.strip() for f in files):
+            raise QueueError("files must be a list of non-empty path/glob strings")
+        entry["files"] = files
     q["rungs"][rid] = entry

@@ -109,8 +109,9 @@ def test_register_and_update_rung_files_validation():
 
 def _queue_with(rid, status, files=None, claimed_by=None):
     q = queue_state.new_queue("lane")
-    queue_state.register_rung(q, rid, rid, f"{rid}.md", status=status,
-                              claimed_by=claimed_by, files=files)
+    queue_state.register_rung(q, rid, rid, f"{rid}.md", status=status, files=files)
+    if claimed_by:
+        queue_state.update_rung(q, rid, claimed_by=claimed_by)
     return q
 
 
@@ -128,8 +129,11 @@ def test_next_actionable_skips_conflicting_open_picks_later():
 
 def test_next_actionable_none_when_all_open_conflict():
     q = _queue_with("r1", "OPEN", files=["a.py"])
-    queue_state.register_rung(q, "r2", "r2", "r2.md", files=["a/b.py"])
+    queue_state.register_rung(q, "r2", "r2", "r2.md", files=["a.py"])
     assert queue_state.next_actionable(q, in_flight_files=["a.py"]) == (None, False)
+    # a/b.py vs a.py is NOT a conflict (path boundary) — r2 stays actionable
+    q["rungs"]["r2"]["files"] = ["a/b.py"]
+    assert queue_state.next_actionable(q, in_flight_files=["a.py"]) == ("r2", False)
 
 
 def test_next_actionable_never_skips_claimed_in_progress():
