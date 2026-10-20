@@ -104,15 +104,15 @@
       "commit": "c57fc78f74a4"
     },
     "s3": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "observer surfaces self_drafts=N",
       "ticket": ".factory/tickets/s3_diagnose_observer_surface.md",
       "receipt": ".factory/receipts/s3_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-20T01:13:22.221156+00:00",
       "claimed_at": "2026-10-20T01:19:12.029612+00:00",
-      "landed_at": null,
-      "commit": null
+      "landed_at": "2026-10-20T01:24:55.246341+00:00",
+      "commit": "e8c4dfa3cce8"
     }
   },
   "infra_notes": [
