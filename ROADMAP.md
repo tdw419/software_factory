@@ -43,3 +43,8 @@ untouched.
 - Rung p2 [LANDED] (8d8fea3364c9): rung conflict metadata (`--files`) + symmetric path/glob overlap filter (`files_overlap`, `next_actionable(q, in_flight_files=...)`, zero kernel edits) (`.factory/tickets/p2_conflict_files.md`)
 - Rung p3 [LANDED] (6d2086bcaa44): `factory dispatch` conflict-aware multi-lane parallel scheduler — `plan_dispatch` (in_flight seeding, resume-claimed, parked/file_conflict/max_parallel skips, head-OPEN lane skip) + concurrent `ThreadPoolExecutor` ticks, `--dry-run`, `--max-parallel`, zero kernel edits (`.factory/tickets/p3_parallel_dispatch.md`)
 
+### v0.9.0 field pilot — seeded by operator 2026-10-20
+
+- Rung fp1 [OPEN]: `templates/PARALLEL_POOL_WALKTHROUGH.md` multi-lane operator walkthrough (`.factory/tickets/fp1_parallel_pool_walkthrough.md`)
+
+
