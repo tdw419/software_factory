@@ -36,3 +36,10 @@ untouched.
 - Rung s1 [LANDED]: `factory diagnose` read-only — mechanical failure-class counter over live + archived decision log (ts-deduped), signature-key findings, queue-dedup with recurrence re-fire (`.factory/tickets/s1_diagnose.md`)
 - Rung s2 [LANDED] (c57fc78f74a4): `factory diagnose --draft` + `builder_timeout` bucket + CLI `--covers` — evidence-cited DRAFT tickets (`origin="self"`, `max_active_drafts` cap, ladder sync, non-kernel constraint) (`.factory/tickets/s2_diagnose_draft.md`)
 - Rung s3 [LANDED] (e8c4dfa3cce8): observer surfaces `self_drafts=N` — same origin="self"+DRAFT/OPEN/IN_PROGRESS population `diagnose.py`'s breaker counts (COVERING_STATUSES imported, not re-typed), read-only, unconditional, legacy lanes report 0 (`.factory/tickets/s3_diagnose_observer_surface.md`)
+
+### v0.9.0 — parallel lane scaling seeded by operator 2026-10-20 (DRAFT; open via `factory ticket set <id> --status OPEN`)
+
+- Rung p1 [OPEN]: `factory pool` read-only multi-lane registry — discovers worktree + configured lanes, reports state/active/heartbeat/branch/worktree (`observer` trust tier, zero writes) (`.factory/tickets/p1_lane_pool.md`)
+- Rung p2 [DRAFT]: rung conflict metadata (`--files`) + symmetric path/glob overlap filter (`files_overlap`, `next_actionable(q, in_flight_files=...)`, zero kernel edits) (`.factory/tickets/p2_conflict_files.md`)
+- Rung p3 [DRAFT]: `factory dispatch` conflict-aware multi-lane parallel scheduler — concurrent ticks across non-conflicting pool lanes, `--dry-run`, `--max-parallel` (`.factory/tickets/p3_parallel_dispatch.md`)
+
