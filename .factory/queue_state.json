@@ -126,7 +126,7 @@
       "commit": "1ea1db8cb2ffb2f6822bc952d2c9db1274002c50"
     },
     "p2": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "rung conflict metadata (--files) + symmetric overlap filter",
       "ticket": ".factory/tickets/p2_conflict_files.md",
       "receipt": ".factory/receipts/p2_RECEIPT.md",
