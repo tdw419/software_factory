@@ -9,4 +9,4 @@ second checker independent of the builder.
 Zero runtime dependencies. Python >= 3.10 stdlib only.
 """
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"

@@ -184,6 +184,40 @@ to the configured ladder (`ROADMAP.md`). `factory observe` surfaces the active
 self-draft population as `self_drafts=<n>` (s3) using the identical predicate
 as the breaker so human veto/open decisions stay visible on the 20m readout.
 
+### Parallel lane pool & conflict-aware scheduler (`pool`, `--files`, `dispatch`, p1–p3)
+
+    factory pool                                   # discover & inspect lanes (read-only)
+    factory pool --paths ../lane_a,../lane_b       # inspect explicit worktree/repo paths
+    factory ticket set t1 --files src/a.py,src/b/* # declare expected-touch file/glob scope
+    factory dispatch --paths ../lane_a,../lane_b --max-parallel 2 --dry-run
+    factory dispatch --paths ../lane_a,../lane_b --max-parallel 2
+
+The unit of parallelism in `software_factory` is the **lane** (each bound to
+its own worktree or scoped subtree). Scaling across multiple agents or GPUs
+uses three primitives without touching the single-lane kernel (`tick.py` /
+`gate.py`):
+
+- **Lane pool registry (`factory pool`, p1)**: read-only discovery via
+  `git worktree list --porcelain` (plus optional `--paths <csv>`) that inspects
+  each lane's `.factory/` state (`ACTIVE` / `READY` / `PARKED` / `LOCKED` /
+  `IDLE`, active/next rung, builder kind, heartbeat age) and emits a
+  deterministic readout ending with `lanes=<N> active=<A> ready=<R> parked=<P>
+  locked=<L> idle=<I>`.
+- **Conflict metadata (`--files`, p2)**: rungs can declare expected-touch
+  paths/globs via `factory ticket add/set --files <csv>`. `files_overlap(a, b)`
+  checks symmetric prefix/glob overlap (reusing the r6 allowlist matcher), and
+  `next_actionable(q, in_flight_files=...)` skips `OPEN` rungs whose declared
+  files overlap in-flight work. Single-lane `tick.py` calls
+  `next_actionable(q)` with default `in_flight_files=()`, keeping single-lane
+  behavior byte-identical.
+- **Parallel multi-lane scheduler (`factory dispatch`, p3)**: seeds
+  `in_flight_files` from all currently `IN_PROGRESS` rungs across discovered
+  lanes, then walks `READY` lanes in deterministic path order. A lane whose
+  head `OPEN` rung overlaps `in_flight_files` is skipped (`reason=file_conflict`);
+  non-conflicting lanes reserve their `files` into the running union (up to
+  `--max-parallel N`) and execute `run_tick` concurrently across separate
+  worktrees via `ThreadPoolExecutor`.
+
 ### Human gate (ASKs)
 
     factory ask create --subject "packages" --question "install scipy?" --options "y/n"
