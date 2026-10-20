@@ -162,15 +162,15 @@
       ]
     },
     "p5": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "builder tier label + ticket difficulty field",
       "ticket": ".factory/tickets/p5_local_builder_difficulty.md",
       "receipt": ".factory/receipts/p5_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-20T22:36:59.478984+00:00",
       "claimed_at": "2026-10-20T22:47:17.491396+00:00",
-      "landed_at": null,
-      "commit": null,
+      "landed_at": "2026-10-20T23:19:21.253471+00:00",
+      "commit": "380688dc5ae3d82ea018233dc687512b71892f3e",
       "files": [
         "software_factory/observer.py",
         "software_factory/queue_state.py",
