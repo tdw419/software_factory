@@ -47,4 +47,8 @@ untouched.
 
 - Rung fp1 [LANDED] (e59a7f6): `templates/PARALLEL_POOL_WALKTHROUGH.md` multi-lane operator walkthrough (`.factory/tickets/fp1_parallel_pool_walkthrough.md`)
 
+### v0.10.0 — seeded by operator 2026-10-20 (DRAFT; open via `factory ticket set <id> --status OPEN`)
+
+- Rung p5 [DRAFT]: builder tier label (`builder.tier` config, `observer` surfaces `builder=<tier>`) + advisory `difficulty` field on rungs (`--files`/`--covers` pattern, non-enforced routing), docs only — no new adapter code (`.factory/tickets/p5_local_builder_difficulty.md`)
+
 

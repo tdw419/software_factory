@@ -160,6 +160,17 @@
       "files": [
         "templates/*"
       ]
+    },
+    "p5": {
+      "status": "DRAFT",
+      "title": "builder tier label + ticket difficulty field",
+      "ticket": ".factory/tickets/p5_local_builder_difficulty.md",
+      "receipt": ".factory/receipts/p5_RECEIPT.md",
+      "claimed_by": null,
+      "opened": "2026-10-20T22:36:59.478984+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null
     }
   },
   "infra_notes": [
