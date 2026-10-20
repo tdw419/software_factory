@@ -18,6 +18,19 @@ Builders and operators can also update rung lifecycle state directly via CLI
     factory ticket set r1 --status IN_PROGRESS --claimed-by builder
     factory ticket set r1 --status LANDED --commit $(git rev-parse HEAD)
 
+Tag a rung's advisory difficulty and label the lane's builder tier (p5 —
+free-form metadata for trust calibration, never gates; both omitted from
+observer/pool output when unset):
+
+    factory ticket add --id d1 --title "test leg" --ticket .factory/tickets/d1.md --difficulty mechanical
+    factory ticket set d1 --difficulty fuzzy
+    # .factory/config.json: "builder": { "adapter": "shell", "cmd": "...", "tier": "local" }
+
+Tier routing is an operator decision made at supply time: open mechanical
+rungs (test legs, docs, benchmark harnesses) in a `tier: "local"` lane and
+keep fuzzy-scope rungs (architecture, API design) on cloud builders. See
+README "Choosing a builder tier" for the pilot-measured rationale.
+
 And close human-gate ASKs from the CLI:
 
     factory ask answer ASK-20261017 --answer "YES — additive package approved"
