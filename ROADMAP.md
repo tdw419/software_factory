@@ -53,7 +53,7 @@ untouched.
 
 ### v0.11.0 — local builder shim (DRAFT; open via `factory ticket set <id> --status OPEN`)
 
-- Rung p6 [OPEN]: `adapters.fenced_bash` local builder execution loop — executes fenced ```bash blocks turn-by-turn until completion/HALT, bypassing fragile JSON tool schemas (`.factory/tickets/p6_fenced_bash_adapter.md`)
+- Rung p6 [LANDED] (a60f1ab): `adapters.fenced_bash` local builder execution loop — executes fenced ```bash blocks turn-by-turn until completion/HALT, bypassing fragile JSON tool schemas (`.factory/tickets/p6_fenced_bash_adapter.md`)
 
 
 
