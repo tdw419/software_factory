@@ -182,7 +182,7 @@
       ]
     },
     "p6": {
-      "status": "DRAFT",
+      "status": "OPEN",
       "title": "adapters.fenced_bash local builder execution loop",
       "ticket": ".factory/tickets/p6_fenced_bash_adapter.md",
       "receipt": ".factory/receipts/p6_RECEIPT.md",
