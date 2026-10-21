@@ -182,15 +182,15 @@
       ]
     },
     "p6": {
-      "status": "IN_PROGRESS",
+      "status": "LANDED",
       "title": "adapters.fenced_bash local builder execution loop",
       "ticket": ".factory/tickets/p6_fenced_bash_adapter.md",
       "receipt": ".factory/receipts/p6_RECEIPT.md",
       "claimed_by": "hermes-cli",
       "opened": "2026-10-21T01:53:27.423021+00:00",
       "claimed_at": "2026-10-21T01:59:55.269514+00:00",
-      "landed_at": null,
-      "commit": null,
+      "landed_at": "2026-10-21T02:12:04.166755+00:00",
+      "commit": "a60f1ab",
       "files": [
         "software_factory/adapters.py",
         "tests/test_adapters.py"
