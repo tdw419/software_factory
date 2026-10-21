@@ -51,4 +51,9 @@ untouched.
 
 - Rung p5 [LANDED] (380688dc5ae3): builder tier label (`builder.tier` config, `observer` surfaces `builder=<tier>`) + advisory `difficulty` field on rungs (`--files`/`--covers` pattern, non-enforced routing), docs only — no new adapter code (`.factory/tickets/p5_local_builder_difficulty.md`)
 
+### v0.11.0 — local builder shim (DRAFT; open via `factory ticket set <id> --status OPEN`)
+
+- Rung p6 [DRAFT]: `adapters.fenced_bash` local builder execution loop — executes fenced ```bash blocks turn-by-turn until completion/HALT, bypassing fragile JSON tool schemas (`.factory/tickets/p6_fenced_bash_adapter.md`)
+
+
 

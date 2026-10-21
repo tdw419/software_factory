@@ -180,6 +180,22 @@
         "README.md",
         "tests/*"
       ]
+    },
+    "p6": {
+      "status": "DRAFT",
+      "title": "adapters.fenced_bash local builder execution loop",
+      "ticket": ".factory/tickets/p6_fenced_bash_adapter.md",
+      "receipt": ".factory/receipts/p6_RECEIPT.md",
+      "claimed_by": null,
+      "opened": "2026-10-21T01:53:27.423021+00:00",
+      "claimed_at": null,
+      "landed_at": null,
+      "commit": null,
+      "files": [
+        "software_factory/adapters.py",
+        "tests/test_adapters.py"
+      ],
+      "difficulty": "mechanical"
     }
   },
   "infra_notes": [
