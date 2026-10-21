@@ -182,13 +182,13 @@
       ]
     },
     "p6": {
-      "status": "OPEN",
+      "status": "IN_PROGRESS",
       "title": "adapters.fenced_bash local builder execution loop",
       "ticket": ".factory/tickets/p6_fenced_bash_adapter.md",
       "receipt": ".factory/receipts/p6_RECEIPT.md",
-      "claimed_by": null,
+      "claimed_by": "hermes-cli",
       "opened": "2026-10-21T01:53:27.423021+00:00",
-      "claimed_at": null,
+      "claimed_at": "2026-10-21T01:59:55.269514+00:00",
       "landed_at": null,
       "commit": null,
       "files": [
