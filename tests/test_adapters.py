@@ -22,6 +22,7 @@ def make_mock(run_dir, body):
     model response; it may use `data` (the prompt text) and `STATE`
     (pathlib.Path counter file for multi-invocation sequencing)."""
     script = Path(run_dir) / "mock_model.py"
+    Path(run_dir).mkdir(parents=True, exist_ok=True)
     script.write_text(
         "import pathlib, sys\n"
         f"STATE = pathlib.Path({str(Path(run_dir) / 'mock_turn')!r})\n"
@@ -48,6 +49,12 @@ def cmd_promptfile(script):
 def mock_invocations(run_dir):
     p = Path(run_dir) / "mock_turn"
     return int(p.read_text()) if p.exists() else 0
+
+
+def prompt_file(tmp_path, text="do the work\n"):
+    p = tmp_path / "prompt.md"
+    p.write_text(text)
+    return p
 
 
 # ---------------------------------------------------------------- registry
@@ -77,7 +84,7 @@ def test_fenced_bash_multi_turn(repo, tmp_path):
         "sys.stdout.write(out)\n"
     )
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=60,
     )
     assert r.returncode == 0, r.stderr
@@ -99,7 +106,7 @@ def test_fenced_bash_output_fed_back(repo, tmp_path):
         "sys.stdout.write(out)\n"
     )
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=60,
     )
     assert r.returncode == 0, r.stderr
@@ -125,7 +132,7 @@ def test_fenced_bash_no_blocks_ends_clean(repo, tmp_path):
     run_dir = tmp_path / "run"
     body = "sys.stdout.write('I am a chatty model, no code today')\n"
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=60,
     )
     assert r.returncode == 0, r.stderr
@@ -140,7 +147,7 @@ def test_fenced_bash_halt_sentinel_skips_blocks(repo, tmp_path):
         "```bash\\necho side-effect > should_not_exist.txt\\n```')\n"
     )
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=60,
     )
     assert r.returncode == 0, r.stderr
@@ -159,7 +166,7 @@ def test_fenced_bash_empty_block_continues(repo, tmp_path):
         "sys.stdout.write(out)\n"
     )
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=60,
     )
     assert r.returncode == 0, r.stderr
@@ -171,7 +178,7 @@ def test_fenced_bash_turn_limit(repo, tmp_path):
     run_dir = tmp_path / "run"
     body = "sys.stdout.write('```bash\\necho spinning > spin.txt\\n```')\n"
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=60, max_turns=2,
     )
     assert r.returncode != 0
@@ -184,7 +191,7 @@ def test_fenced_bash_model_cmd_timeout(repo, tmp_path):
     run_dir = tmp_path / "run"
     r = adapters.get_adapter("fenced_bash")(
         repo, f"{sys.executable} -c \"import time; time.sleep(30)\"",
-        tmp_path / "prompt.md", run_dir, timeout_s=2,
+        prompt_file(tmp_path), run_dir, timeout_s=2,
     )
     assert r.returncode == 124
 
@@ -194,7 +201,7 @@ def test_fenced_bash_block_timeout(repo, tmp_path):
     run_dir = tmp_path / "run"
     body = "sys.stdout.write('```bash\\nsleep 30\\n```')\n"
     r = adapters.get_adapter("fenced_bash")(
-        repo, cmd_stdin(make_mock(run_dir, body)), tmp_path / "prompt.md",
+        repo, cmd_stdin(make_mock(run_dir, body)), prompt_file(tmp_path),
         run_dir, timeout_s=2,
     )
     assert r.returncode == 124
