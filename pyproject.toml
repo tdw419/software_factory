@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "software-factory"
-version = "0.10.0"
+version = "0.11.0"
 description = "Standalone autonomous builder lane: change-gated ticks, tickets, receipts, GO-gated disruptions, mechanical observers."
 readme = "README.md"
 requires-python = ">=3.10"
